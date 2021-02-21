@@ -24,7 +24,26 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 `
 
-	migrationTemplate = `package migrate
+	migrationsTemplate = `package migrations
+
+var (
+	Migrations []migration
+)
+
+type (
+	migration struct {
+		version int
+		up      string
+		down    string
+	}
+)
+
+func add(m migration) {
+	Migrations = append(Migrations, m)
+}
+`
+
+	migrationTemplate = `package migrations
 
 func init() {
 	add(migration{
@@ -59,6 +78,17 @@ type (
 func CreateNewMigration(dir string, names ...string) (path string, err error) {
 	var f *os.File
 	f, err = os.Open(dir)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return
+		}
+		err = ioutil.WriteFile(filepath.Join(dir, "migrations.go"), []byte(migrationsTemplate), 0644)
+		if err != nil {
+			return
+		}
+		f, err = os.Open(dir)
+	}
 	if err != nil {
 		return
 	}
