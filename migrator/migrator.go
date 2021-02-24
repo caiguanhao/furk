@@ -62,7 +62,7 @@ var (
 type (
 	Migrator struct {
 		Scope  string
-		DB     db.SQLDB
+		DB     db.DB
 		Logger logger.Logger
 
 		migrations []migration
@@ -202,7 +202,7 @@ func (m *Migrator) migrate() error {
 
 func (m *Migrator) Rollback() (err error) {
 	err = m.rollback()
-	if err != nil && (err == m.DB.ErrNoRows() || m.DB.ErrHasCode(err, "42P01")) { // relation not exists
+	if err != nil && (err == m.DB.ErrNoRows() || m.DB.ErrGetCode(err) == "42P01") { // relation not exists
 		m.Logger.Info("nothing to rollback")
 	} else if err != nil {
 		m.Logger.Error(err)
