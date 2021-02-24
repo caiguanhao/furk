@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/caiguanhao/furk/db"
+	"github.com/caiguanhao/furk/db/pgx"
 	"github.com/caiguanhao/furk/db/pq"
 	"github.com/caiguanhao/furk/logger"
 )
@@ -36,16 +38,36 @@ type (
 	}
 )
 
-func TestCRUD(t *testing.T) {
-	conn, err := pq.Open("postgres://localhost:5432/flurktests?sslmode=disable")
+var connStr string
+
+func init() {
+	connStr = os.Getenv("DBCONNSTR")
+	if connStr == "" {
+		connStr = "postgres://localhost:5432/flurktests?sslmode=disable"
+	}
+}
+
+func TestCRUDInPQ(t *testing.T) {
+	conn, err := pq.Open(connStr)
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCRUD(t, conn)
+}
 
+func TestCRUDInPGX(t *testing.T) {
+	conn, err := pgx.Open(connStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCRUD(t, conn)
+}
+
+func testCRUD(t *testing.T, conn db.DB) {
 	o := db.NewModel(order{})
 	o.SetConnection(conn)
 	o.SetLogger(logger.StandardLogger)
-	err = o.NewSQLWithValues("DROP TABLE IF EXISTS " + o.TableName()).Execute()
+	err := o.NewSQLWithValues("DROP TABLE IF EXISTS " + o.TableName()).Execute()
 	if err != nil {
 		t.Fatal(err)
 	}
