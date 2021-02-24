@@ -26,6 +26,14 @@ type (
 	}
 )
 
+func Open(conn string) (db.DB, error) {
+	pool, err := pgxpool.Connect(context.Background(), conn)
+	if err != nil {
+		return nil, err
+	}
+	return &DB{pool}, nil
+}
+
 func (d *DB) Close() error {
 	d.Pool.Close()
 	return nil

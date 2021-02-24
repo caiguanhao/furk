@@ -3,7 +3,6 @@ package db_test
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,8 +11,8 @@ import (
 	"time"
 
 	"github.com/caiguanhao/furk/db"
+	"github.com/caiguanhao/furk/db/pq"
 	"github.com/caiguanhao/furk/logger"
-	_ "github.com/lib/pq"
 )
 
 type (
@@ -38,14 +37,10 @@ type (
 )
 
 func TestCRUD(t *testing.T) {
-	c, err := sql.Open("postgres", "postgres://localhost:5432/flurktests?sslmode=disable")
+	conn, err := pq.Open("postgres://localhost:5432/flurktests?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Ping(); err != nil {
-		t.Fatal(err)
-	}
-	conn := &db.StandardDB{c}
 
 	o := db.NewModel(order{})
 	o.SetConnection(conn)
