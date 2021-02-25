@@ -69,10 +69,14 @@ func testCRUD(t *testing.T, conn db.DB) {
 	o := db.NewModel(order{})
 	o.SetConnection(conn)
 	o.SetLogger(logger.StandardLogger)
-	err := o.NewSQLWithValues("DROP TABLE IF EXISTS " + o.TableName()).Execute()
+
+	// drop table
+	err := o.NewSQLWithValues(o.DropSchema()).Execute()
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// create table
 	err = o.NewSQLWithValues(o.Schema()).Execute()
 	if err != nil {
 		t.Fatal(err)
