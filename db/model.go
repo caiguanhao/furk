@@ -100,6 +100,11 @@ func (m Model) Schema() string {
 	return "CREATE TABLE " + m.tableName + " (\n" + strings.Join(sql, ",\n") + "\n);\n"
 }
 
+// generate DROP TABLE statement
+func (m Model) DropSchema() string {
+	return "DROP TABLE IF EXISTS " + m.tableName + ";\n"
+}
+
 // set a database connection
 func (m *Model) SetConnection(db DB) *Model {
 	m.connection = db

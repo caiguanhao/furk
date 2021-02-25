@@ -48,8 +48,8 @@ func add(m migration) {
 func init() {
 	add(migration{
 		version: %d,
-		up: ` + "`\n`," + `
-		down: ` + "`\n`," + `
+		up: ` + "`%s`," + `
+		down: ` + "`%s`," + `
 	})
 }
 `
@@ -76,6 +76,33 @@ type (
 )
 
 func CreateNewMigration(dir string, names ...string) (path string, err error) {
+	var name string
+	if len(names) > 0 {
+		name = names[0]
+	}
+	for name == "" {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("File name in lower snake case (for example: create_table_name): ")
+		name, _ = reader.ReadString('\n')
+		name = strings.TrimSpace(name)
+	}
+	return createNewMigration(dir, name, "\n", "\n")
+}
+
+func CreateNewMigrationFromModels(dir string, models ...interface{}) (path string, err error) {
+	var name, up, down string
+	for _, o := range models {
+		model := db.NewModel(o)
+		if name == "" {
+			name = "create_" + model.TableName()
+		}
+		up += "\n" + model.Schema()
+		down = "\n" + model.DropSchema() + down
+	}
+	return createNewMigration(dir, name, up, down)
+}
+
+func createNewMigration(dir, name, up, down string) (path string, err error) {
 	var f *os.File
 	f, err = os.Open(dir)
 	if os.IsNotExist(err) {
@@ -110,20 +137,13 @@ func CreateNewMigration(dir string, names ...string) (path string, err error) {
 			max = n
 		}
 	}
-	version := max + 1
-	var name string
-	if len(names) > 0 {
-		name = names[0]
+	version := max
+	path = filepath.Join(dir, fmt.Sprintf("%02d_%s.go", version, name))
+	if _, err := os.Stat(path); err != nil {
+		version = max + 1
+		path = filepath.Join(dir, fmt.Sprintf("%02d_%s.go", version, name))
 	}
-	for name == "" {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("File name in lower snake case (for example: create_table_name): ")
-		name, _ = reader.ReadString('\n')
-		name = strings.TrimSpace(name)
-	}
-	filename := fmt.Sprintf("%02d_%s.go", version, name)
-	path = filepath.Join(dir, filename)
-	err = ioutil.WriteFile(path, []byte(fmt.Sprintf(migrationTemplate, version)), 0644)
+	err = ioutil.WriteFile(path, []byte(fmt.Sprintf(migrationTemplate, version, up, down)), 0644)
 	return
 }
 
