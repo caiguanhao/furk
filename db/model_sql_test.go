@@ -15,6 +15,7 @@ import (
 	"github.com/caiguanhao/furk/db/pgx"
 	"github.com/caiguanhao/furk/db/pq"
 	"github.com/caiguanhao/furk/logger"
+	"github.com/shopspring/decimal"
 )
 
 type (
@@ -25,6 +26,7 @@ type (
 		Status      string
 		TradeNumber string
 		UserId      int `json:"foobar_user_id"`
+		TotalAmount decimal.Decimal
 		CreatedAt   time.Time
 		UpdatedAt   time.Time
 		name        string `column:"name"`
@@ -81,9 +83,11 @@ func testCRUD(t *testing.T, conn db.DB) {
 		t.Fatal(err)
 	}
 	tradeNo := hex.EncodeToString(randomBytes)
+	totalAmount, _ := decimal.NewFromString("12.34")
 	createInput := strings.NewReader(`{
 		"Status": "changed",
 		"TradeNumber": "` + tradeNo + `",
+		"TotalAmount": "` + totalAmount.String() + `",
 		"foobar_user_id": 1,
 		"NotAllowed": "foo",
 		"FieldInJsonb": "yes",
@@ -102,7 +106,7 @@ func testCRUD(t *testing.T, conn db.DB) {
 	err = model.Insert(
 		model.Permit(
 			"Status", "TradeNumber", "UserId", "FieldInJsonb", "OtherJsonb",
-			"jsonbTest",
+			"jsonbTest", "TotalAmount",
 		).Filter(createData),
 		model.Changes(db.RawChanges{
 			"name":   "foobar",
@@ -135,6 +139,7 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testI(t, "order id", firstOrder.Id, 1)
 	testS(t, "order status", firstOrder.Status, "new")
 	testS(t, "order trade number", firstOrder.TradeNumber, tradeNo)
+	testD(t, "order total amount", firstOrder.TotalAmount, totalAmount)
 	testI(t, "order user", firstOrder.UserId, 1)
 	testS(t, "order name", firstOrder.name, "foobar")
 	testS(t, "order title", firstOrder.title, "hello")
@@ -260,6 +265,15 @@ func testS(t *testing.T, name, got, expected string) {
 func testI(t *testing.T, name string, got, expected int) {
 	t.Helper()
 	if got == expected {
+		t.Logf("%s test passed", name)
+	} else {
+		t.Errorf("%s test failed, got %d", name, got)
+	}
+}
+
+func testD(t *testing.T, name string, got, expected decimal.Decimal) {
+	t.Helper()
+	if got.Equal(expected) {
 		t.Logf("%s test passed", name)
 	} else {
 		t.Errorf("%s test failed, got %d", name, got)

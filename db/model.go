@@ -410,6 +410,8 @@ func (m *Model) parseStruct(obj interface{}) {
 					dataType = "timestamptz DEFAULT NOW()"
 				case "float32", "float64":
 					dataType = "numeric(10,2) DEFAULT 0.0"
+				case "decimal.Decimal":
+					dataType = "numeric(10, 2) DEFAULT 0.0"
 				case "bool":
 					dataType = "boolean DEFAULT false"
 				default:
