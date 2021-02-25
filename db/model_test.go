@@ -1,15 +1,25 @@
 package db
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
 
 type (
-	admin struct {
+	userAlike struct {
 		Id       int
 		Name     string
 		Password string
+	}
+
+	admin struct {
+		userAlike
+	}
+
+	user struct {
+		userAlike
+		Phone string
 	}
 
 	category struct {
@@ -58,10 +68,22 @@ func TestModel(t *testing.T) {
 	testI(len(m1.PermittedFields()), 1)
 	m1.Permit("Id", "Id")
 	testI(len(m1.PermittedFields()), 1)
-	testI(len(m1.Filter(map[string]interface{}{
+	testI(len(m1.Filter(RawChanges{
 		"Id":   1,
 		"Name": "haha",
 	})), 1)
+	testI(len(m1.Filter(`{
+		"Id":   1,
+		"Name": "haha"
+	}`)), 1)
+	testI(len(m1.Filter([]byte(`{
+		"Id":   1,
+		"Name": "haha"
+	}`))), 1)
+	testI(len(m1.Filter(strings.NewReader(`{
+		"Id":   1,
+		"Name": "haha"
+	}`))), 1)
 	m1.Permit()
 	testI(len(m1.PermittedFields()), 0)
 	testI(len(m1.Filter(map[string]interface{}{
@@ -136,4 +158,8 @@ func TestModel(t *testing.T) {
 		m2.CreatedAt(),
 		m2.UpdatedAt(),
 	)().String(), "UPDATE categories SET created_at = $1, updated_at = $2, meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{names}', $3)")
+
+	m3 := NewModel(user{})
+	testS(m3.tableName, "users")
+	testI(len(m3.modelFields), 4)
 }

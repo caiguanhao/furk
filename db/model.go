@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"strings"
@@ -43,7 +44,7 @@ func NewModel(object interface{}) (m *Model) {
 	m = &Model{
 		tableName: ToTableName(object),
 	}
-	m.parseStruct(object)
+	m.modelFields, m.jsonbColumns = m.parseStruct(object)
 	return
 }
 
@@ -151,16 +152,42 @@ func (m *Model) PermitAllExcept(fieldNames ...string) *Model {
 }
 
 // convert RawChanges to Changes, only field names set by last Permit() are permitted
-func (m Model) Filter(in RawChanges) (out Changes) {
+func (m Model) Filter(inputs ...interface{}) (out Changes) {
 	out = Changes{}
+	for _, input := range inputs {
+		switch in := input.(type) {
+		case RawChanges:
+			m.filterPermits(in, &out)
+		case map[string]interface{}:
+			m.filterPermits(in, &out)
+		case string:
+			var c RawChanges
+			if json.Unmarshal([]byte(in), &c) == nil {
+				m.filterPermits(c, &out)
+			}
+		case []byte:
+			var c RawChanges
+			if json.Unmarshal(in, &c) == nil {
+				m.filterPermits(c, &out)
+			}
+		case io.Reader:
+			var c RawChanges
+			if json.NewDecoder(in).Decode(&c) == nil {
+				m.filterPermits(c, &out)
+			}
+		}
+	}
+	return
+}
+
+func (m Model) filterPermits(in RawChanges, out *Changes) {
 	for _, i := range m.permittedFieldsIdx {
 		field := m.modelFields[i]
 		if _, ok := in[field.JsonName]; !ok {
 			continue
 		}
-		out[field] = in[field.JsonName]
+		(*out)[field] = in[field.JsonName]
 	}
-	return
 }
 
 // convert RawChanges to Changes
@@ -336,18 +363,19 @@ func (m Model) UpdatedAt() Changes {
 }
 
 // parseStruct collects column names, json names and jsonb names
-func (m *Model) parseStruct(obj interface{}) {
+func (m *Model) parseStruct(obj interface{}) (fields []field, jsonbColumns []string) {
 	var rt reflect.Type
 	if o, ok := obj.(reflect.Type); ok {
 		rt = o
 	} else {
 		rt = reflect.TypeOf(obj)
 	}
-	fields := []field{}
-	jsonbColumns := []string{}
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)
 		if f.Anonymous {
+			f, j := m.parseStruct(f.Type)
+			fields = append(fields, f...)
+			jsonbColumns = append(jsonbColumns, j...)
 			continue
 		}
 
@@ -437,6 +465,5 @@ func (m *Model) parseStruct(obj interface{}) {
 			DataType:   dataType,
 		})
 	}
-	m.modelFields = fields
-	m.jsonbColumns = jsonbColumns
+	return
 }
