@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -37,6 +38,10 @@ type (
 
 	RawChanges map[string]interface{}
 	Changes    map[field]interface{}
+)
+
+var (
+	ErrMustBePointer = errors.New("must be pointer")
 )
 
 // initialize a model from a struct
@@ -149,6 +154,24 @@ func (m *Model) PermitAllExcept(fieldNames ...string) *Model {
 		}
 	}
 	return m
+}
+
+func (m Model) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) error {
+	rt := reflect.TypeOf(i)
+	if rt.Kind() != reflect.Ptr {
+		return ErrMustBePointer
+	}
+	rv := reflect.ValueOf(i).Elem()
+	nv := reflect.New(rt.Elem())
+	if err := ctx.Bind(nv.Interface()); err != nil {
+		return err
+	}
+	nv = nv.Elem()
+	for _, i := range m.permittedFieldsIdx {
+		field := m.modelFields[i]
+		rv.FieldByName(field.Name).Set(nv.FieldByName(field.Name))
+	}
+	return nil
 }
 
 // convert RawChanges to Changes, only field names set by last Permit() are permitted
@@ -369,6 +392,12 @@ func (m *Model) parseStruct(obj interface{}) (fields []field, jsonbColumns []str
 		rt = o
 	} else {
 		rt = reflect.TypeOf(obj)
+	}
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	if rt.Kind() != reflect.Struct {
+		return
 	}
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)

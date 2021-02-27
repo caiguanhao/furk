@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -149,7 +148,6 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testS(t, "order title", firstOrder.title, "hello")
 	ca := time.Since(firstOrder.CreatedAt)
 	ua := time.Since(firstOrder.UpdatedAt)
-	fmt.Println(ca, ua)
 	testB(t, "order created at", ca > 0 && ca < 200*time.Millisecond)
 	testB(t, "order updated at", ua > 0 && ua < 200*time.Millisecond)
 	testS(t, "order ignored", firstOrder.Ignored, "")
@@ -157,6 +155,20 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testS(t, "order FieldInJsonb", firstOrder.FieldInJsonb, "yes")
 	testS(t, "order OtherJsonb", firstOrder.OtherJsonb, "no")
 	testI(t, "order jsonbTest", firstOrder.jsonbTest, 123)
+
+	var c echoContext
+	if err = model.Permit().Bind(c, &firstOrder); err != nil {
+		t.Fatal(err)
+	}
+	testI(t, "bind order id", firstOrder.Id, 1)
+	testS(t, "bind order status", firstOrder.Status, "new")
+	testS(t, "bind order trade number", firstOrder.TradeNumber, tradeNo)
+	if err = model.Permit("Id", "TradeNumber").Bind(c, &firstOrder); err != nil {
+		t.Fatal(err)
+	}
+	testI(t, "bind order id", firstOrder.Id, 2)
+	testS(t, "bind order status", firstOrder.Status, "new")
+	testS(t, "bind order trade number", firstOrder.TradeNumber, "")
 
 	var orders []order
 	err = model.Find("ORDER BY created_at DESC").Query(&orders)
@@ -282,4 +294,16 @@ func testD(t *testing.T, name string, got, expected decimal.Decimal) {
 	} else {
 		t.Errorf("%s test failed, got %d", name, got)
 	}
+}
+
+type (
+	echoContext struct{}
+)
+
+func (c echoContext) Bind(i interface{}) error {
+	if o, ok := i.(*order); ok {
+		o.Id = 2
+		o.Status = "foo"
+	}
+	return nil
 }

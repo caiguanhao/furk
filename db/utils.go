@@ -23,13 +23,18 @@ func ToTableName(object interface{}) (name string) {
 		return
 	}
 	rt := reflect.TypeOf(object)
-	if f, ok := rt.FieldByName(tableNameField); ok {
-		name = string(f.Tag)
-		if name != "" {
-			return
-		}
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
 	}
-	name = ToColumnName(rt.Name())
+	if rt.Kind() == reflect.Struct {
+		if f, ok := rt.FieldByName(tableNameField); ok {
+			name = string(f.Tag)
+			if name != "" {
+				return
+			}
+		}
+		name = ToColumnName(rt.Name())
+	}
 	if name == "" { // anonymous struct has no name
 		return "error_no_table_name"
 	}
