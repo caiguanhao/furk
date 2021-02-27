@@ -1,0 +1,11 @@
+language: go
+
+go:
+  - 1.15.x
+  - 1.16.x
+
+services:
+  - postgresql
+
+before_script:
+  - psql -c 'create database flurktests;' -U postgres
