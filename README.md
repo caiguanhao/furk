@@ -1,3 +1,6 @@
+[![](https://godoc.org/github.com/caiguanhao/furk?status.svg)](https://pkg.go.dev/github.com/caiguanhao/furk#section-directories)
+[![Build Status](https://travis-ci.com/caiguanhao/furk.svg?branch=master)](https://travis-ci.com/caiguanhao/furk)
+
 # furk
 
 ## db.Model
