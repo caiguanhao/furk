@@ -61,6 +61,12 @@ func (s sqlWithValues) String() string {
 	return s.sql
 }
 
+func (s sqlWithValues) MustQuery(target interface{}) {
+	if err := s.Query(target); err != nil {
+		panic(err)
+	}
+}
+
 // get one (if target is a pointer of struct) or all results (if target is a
 // pointer of a slice of struct) from database
 func (s sqlWithValues) Query(target interface{}) error {
@@ -159,18 +165,42 @@ func (s sqlWithValues) scan(rv reflect.Value, scannable Scannable) error {
 	return nil
 }
 
+func (s sqlWithValues) MustQueryRow(dest ...interface{}) {
+	if err := s.QueryRow(dest...); err != nil {
+		panic(err)
+	}
+}
+
 // get returning results from an INSERT INTO statement
 func (s sqlWithValues) QueryRow(dest ...interface{}) error {
 	return s.QueryRowInTransaction(nil, dest...)
+}
+
+func (s sqlWithValues) MustQueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) {
+	if err := s.QueryRowInTransaction(txOpts, dest...); err != nil {
+		panic(err)
+	}
 }
 
 func (s sqlWithValues) QueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) error {
 	return s.execute(actionQueryRow, txOpts, dest...)
 }
 
+func (s sqlWithValues) MustExecute(dest ...interface{}) {
+	if err := s.Execute(dest...); err != nil {
+		panic(err)
+	}
+}
+
 // execute statements like INSERT INTO, UPDATE, DELETE and get rows affected
 func (s sqlWithValues) Execute(dest ...interface{}) error {
 	return s.ExecuteInTransaction(nil, dest...)
+}
+
+func (s sqlWithValues) MustExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) {
+	if err := s.ExecuteInTransaction(txOpts, dest...); err != nil {
+		panic(err)
+	}
 }
 
 func (s sqlWithValues) ExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) error {
