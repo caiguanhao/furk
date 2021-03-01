@@ -156,22 +156,25 @@ func (m *Model) PermitAllExcept(fieldNames ...string) *Model {
 	return m
 }
 
-func (m Model) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) error {
+func (m Model) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) (Changes, error) {
 	rt := reflect.TypeOf(i)
 	if rt.Kind() != reflect.Ptr {
-		return ErrMustBePointer
+		return nil, ErrMustBePointer
 	}
 	rv := reflect.ValueOf(i).Elem()
 	nv := reflect.New(rt.Elem())
 	if err := ctx.Bind(nv.Interface()); err != nil {
-		return err
+		return nil, err
 	}
 	nv = nv.Elem()
+	out := Changes{}
 	for _, i := range m.permittedFieldsIdx {
 		field := m.modelFields[i]
-		rv.FieldByName(field.Name).Set(nv.FieldByName(field.Name))
+		v := nv.FieldByName(field.Name)
+		rv.FieldByName(field.Name).Set(v)
+		out[field] = v.Interface()
 	}
-	return nil
+	return out, nil
 }
 
 // convert RawChanges to Changes, only field names set by last Permit() are permitted

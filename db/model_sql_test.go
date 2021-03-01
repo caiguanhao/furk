@@ -157,15 +157,19 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testI(t, "order jsonbTest", firstOrder.jsonbTest, 123)
 
 	var c echoContext
-	if err = model.Permit().Bind(c, &firstOrder); err != nil {
+	changes, err := model.Permit().Bind(c, &firstOrder)
+	if err != nil {
 		t.Fatal(err)
 	}
+	testI(t, "bind changes size", len(changes), 0)
 	testI(t, "bind order id", firstOrder.Id, 1)
 	testS(t, "bind order status", firstOrder.Status, "new")
 	testS(t, "bind order trade number", firstOrder.TradeNumber, tradeNo)
-	if err = model.Permit("Id", "TradeNumber").Bind(c, &firstOrder); err != nil {
+	changes, err = model.Permit("Id", "TradeNumber").Bind(c, &firstOrder)
+	if err != nil {
 		t.Fatal(err)
 	}
+	testI(t, "bind changes size", len(changes), 2)
 	testI(t, "bind order id", firstOrder.Id, 2)
 	testS(t, "bind order status", firstOrder.Status, "new")
 	testS(t, "bind order trade number", firstOrder.TradeNumber, "")
