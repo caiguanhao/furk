@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/caiguanhao/furk/logger"
 )
@@ -269,6 +270,38 @@ func (m Model) MustCount(values ...interface{}) int {
 // a helper to create and execute SELECT COUNT(*) statement
 func (m Model) Count(values ...interface{}) (count int, err error) {
 	err = m.Select("COUNT(*)", values...).QueryRow(&count)
+	return
+}
+
+func (m Model) MustAssign(i interface{}, lotsOfChanges ...Changes) []Changes {
+	out, err := m.Assign(i, lotsOfChanges...)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func (m Model) Assign(i interface{}, lotsOfChanges ...Changes) (out []Changes, err error) {
+	rt := reflect.TypeOf(i)
+	if rt.Kind() != reflect.Ptr {
+		err = ErrMustBePointer
+		return
+	}
+	rv := reflect.ValueOf(i).Elem()
+	for _, changes := range lotsOfChanges {
+		for field, value := range changes {
+			f := rv.FieldByName(field.Name)
+			var pointer interface{}
+			if field.Exported {
+				pointer = f.Addr().Interface()
+			} else {
+				pointer = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Interface()
+			}
+			b, _ := json.Marshal(value)
+			json.Unmarshal(b, pointer)
+		}
+	}
+	out = lotsOfChanges
 	return
 }
 

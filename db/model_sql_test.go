@@ -197,8 +197,9 @@ func testCRUD(t *testing.T, conn db.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var rowsAffected int
-	err = model.Update(
+	var ao order
+	achanges, err := model.Assign(
+		&ao,
 		model.Permit("Status", "FieldInJsonb", "OtherJsonb").Filter(updateData),
 		model.Permit("Status").Filter(db.RawChanges{
 			"x":            "1",
@@ -206,7 +207,15 @@ func testCRUD(t *testing.T, conn db.DB) {
 			"FieldInJsonb": "black",
 		}),
 		model.UpdatedAt(),
-	)().ExecuteInTransaction(&db.TxOptions{
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testS(t, "order status", ao.Status, "furk")
+	testS(t, "order FieldInJsonb", ao.FieldInJsonb, "red")
+	testS(t, "order OtherJsonb", ao.OtherJsonb, "blue")
+	var rowsAffected int
+	err = model.Update(achanges...)().ExecuteInTransaction(&db.TxOptions{
 		IsolationLevel: db.LevelSerializable,
 		Before: func(ctx context.Context, tx db.Tx) (err error) {
 			err = model.NewSQLWithValues(
