@@ -256,6 +256,14 @@ func (m Model) Select(fields string, values ...interface{}) sqlWithValues {
 	return m.NewSQLWithValues(sql, values...)
 }
 
+func (m Model) MustCount(values ...interface{}) int {
+	count, err := m.Count(values...)
+	if err != nil {
+		panic(err)
+	}
+	return count
+}
+
 // a helper to create and execute SELECT COUNT(*) statement
 func (m Model) Count(values ...interface{}) (count int, err error) {
 	err = m.Select("COUNT(*)", values...).QueryRow(&count)
