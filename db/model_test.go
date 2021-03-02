@@ -55,54 +55,55 @@ func TestModel(t *testing.T) {
 	m0 := NewModelSlim(admin{})
 	testS(m0.tableName, "admins")
 	testI(len(m0.modelFields), 0)
-	m0.Permit("Id")
-	testI(len(m0.PermittedFields()), 0)
+	p := m0.Permit("Id")
+	testI(len(p.PermittedFields()), 0)
 
 	m1 := NewModel(admin{})
 	testS(m1.tableName, "admins")
 	testI(len(m1.modelFields), 3)
-	testI(len(m1.PermittedFields()), 0)
-	m1.Permit("Invalid")
-	testI(len(m1.PermittedFields()), 0)
-	m1.Permit("Id")
-	testI(len(m1.PermittedFields()), 1)
-	m1.Permit("Id", "Id")
-	testI(len(m1.PermittedFields()), 1)
-	testI(len(m1.Filter(RawChanges{
+	p = m1.Permit()
+	testI(len(p.PermittedFields()), 0)
+	p = m1.Permit("Invalid")
+	testI(len(p.PermittedFields()), 0)
+	p = m1.Permit("Id")
+	testI(len(p.PermittedFields()), 1)
+	p = m1.Permit("Id", "Id")
+	testI(len(p.PermittedFields()), 1)
+	testI(len(p.Filter(RawChanges{
 		"Id":   1,
 		"Name": "haha",
 	})), 1)
-	testI(len(m1.Filter(`{
+	testI(len(p.Filter(`{
 		"Id":   1,
 		"Name": "haha"
 	}`)), 1)
-	testI(len(m1.Filter([]byte(`{
+	testI(len(p.Filter([]byte(`{
 		"Id":   1,
 		"Name": "haha"
 	}`))), 1)
-	testI(len(m1.Filter(strings.NewReader(`{
+	testI(len(p.Filter(strings.NewReader(`{
 		"Id":   1,
 		"Name": "haha"
 	}`))), 1)
-	m1.Permit()
-	testI(len(m1.PermittedFields()), 0)
-	testI(len(m1.Filter(map[string]interface{}{
+	p = m1.Permit()
+	testI(len(p.PermittedFields()), 0)
+	testI(len(p.Filter(map[string]interface{}{
 		"Name": "haha",
 	})), 0)
-	m1.PermitAllExcept("Password")
-	testI(len(m1.PermittedFields()), 2)
-	m1.PermitAllExcept("Password", "Password")
-	testI(len(m1.PermittedFields()), 2)
-	testI(len(m1.Filter(map[string]interface{}{
+	p = m1.PermitAllExcept("Password")
+	testI(len(p.PermittedFields()), 2)
+	p = m1.PermitAllExcept("Password", "Password")
+	testI(len(p.PermittedFields()), 2)
+	testI(len(p.Filter(map[string]interface{}{
 		"Name":     "haha",
 		"Password": "reset",
 		"BadData":  "foobar",
 	})), 1)
-	m1.PermitAllExcept()
-	testI(len(m1.PermittedFields()), 3)
-	m1.PermitAllExcept("Invalid")
-	testI(len(m1.PermittedFields()), 3)
-	m1.Permit()
+	p = m1.PermitAllExcept()
+	testI(len(p.PermittedFields()), 3)
+	p = m1.PermitAllExcept("Invalid")
+	testI(len(p.PermittedFields()), 3)
+	p = m1.Permit()
 	c := m1.Changes(RawChanges{
 		"Name":    "test",
 		"BadData": "foobar",
@@ -125,8 +126,8 @@ func TestModel(t *testing.T) {
 
 	m2 := NewModel(category{})
 	testS(m2.tableName, "categories")
-	m2.Permit("Names", "Picture")
-	testI(len(m2.PermittedFields()), 2)
+	p = m2.Permit("Names", "Picture")
+	testI(len(p.PermittedFields()), 2)
 	m2c := m2.Changes(RawChanges{
 		"Picture": "https://hello/world",
 	})

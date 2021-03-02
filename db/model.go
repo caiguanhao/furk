@@ -15,12 +15,16 @@ import (
 
 type (
 	Model struct {
-		connection         DB
-		logger             logger.Logger
-		tableName          string
-		modelFields        []field
+		connection   DB
+		logger       logger.Logger
+		tableName    string
+		modelFields  []field
+		jsonbColumns []string
+	}
+
+	ModelWithPermittedFields struct {
+		*Model
 		permittedFieldsIdx []int
-		jsonbColumns       []string
 	}
 
 	ModelWithTableName interface {
@@ -63,24 +67,13 @@ func NewModelSlim(object interface{}) (m *Model) {
 
 // get table name of a model (see ToTableName())
 func (m Model) String() string {
-	f := m.PermittedFields()
 	return `model (table: "` + m.tableName + `") has ` +
-		strconv.Itoa(len(m.modelFields)) + " modelFields, " +
-		strconv.Itoa(len(f)) + " permittedFields"
+		strconv.Itoa(len(m.modelFields)) + " modelFields"
 }
 
 // get table name of a model (see ToTableName())
 func (m Model) TableName() string {
 	return m.tableName
-}
-
-// get permitted struct field names
-func (m Model) PermittedFields() (out []string) {
-	for _, i := range m.permittedFieldsIdx {
-		field := m.modelFields[i]
-		out = append(out, field.Name)
-	}
-	return
 }
 
 // generate CREATE TABLE statement
@@ -124,23 +117,23 @@ func (m *Model) SetLogger(logger logger.Logger) *Model {
 }
 
 // permits field names of a struct for Filter()
-func (m *Model) Permit(fieldNames ...string) *Model {
-	m.permittedFieldsIdx = []int{}
+func (m Model) Permit(fieldNames ...string) *ModelWithPermittedFields {
+	idx := []int{}
 	for i, field := range m.modelFields {
 		for _, fieldName := range fieldNames {
 			if fieldName != field.Name {
 				continue
 			}
-			m.permittedFieldsIdx = append(m.permittedFieldsIdx, i)
+			idx = append(idx, i)
 			break
 		}
 	}
-	return m
+	return &ModelWithPermittedFields{&m, idx}
 }
 
 // field name exceptions of a struct for Filter()
-func (m *Model) PermitAllExcept(fieldNames ...string) *Model {
-	m.permittedFieldsIdx = []int{}
+func (m Model) PermitAllExcept(fieldNames ...string) *ModelWithPermittedFields {
+	idx := []int{}
 	for i, field := range m.modelFields {
 		found := false
 		for _, fieldName := range fieldNames {
@@ -150,13 +143,22 @@ func (m *Model) PermitAllExcept(fieldNames ...string) *Model {
 			}
 		}
 		if !found {
-			m.permittedFieldsIdx = append(m.permittedFieldsIdx, i)
+			idx = append(idx, i)
 		}
 	}
-	return m
+	return &ModelWithPermittedFields{&m, idx}
 }
 
-func (m Model) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) (Changes, error) {
+// get permitted struct field names
+func (m ModelWithPermittedFields) PermittedFields() (out []string) {
+	for _, i := range m.permittedFieldsIdx {
+		field := m.modelFields[i]
+		out = append(out, field.Name)
+	}
+	return
+}
+
+func (m ModelWithPermittedFields) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) (Changes, error) {
 	rt := reflect.TypeOf(i)
 	if rt.Kind() != reflect.Ptr {
 		return nil, ErrMustBePointer
@@ -178,7 +180,7 @@ func (m Model) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) (Ch
 }
 
 // convert RawChanges to Changes, only field names set by last Permit() are permitted
-func (m Model) Filter(inputs ...interface{}) (out Changes) {
+func (m ModelWithPermittedFields) Filter(inputs ...interface{}) (out Changes) {
 	out = Changes{}
 	for _, input := range inputs {
 		switch in := input.(type) {
@@ -206,7 +208,7 @@ func (m Model) Filter(inputs ...interface{}) (out Changes) {
 	return
 }
 
-func (m Model) filterPermits(in RawChanges, out *Changes) {
+func (m ModelWithPermittedFields) filterPermits(in RawChanges, out *Changes) {
 	for _, i := range m.permittedFieldsIdx {
 		field := m.modelFields[i]
 		if _, ok := in[field.JsonName]; !ok {
