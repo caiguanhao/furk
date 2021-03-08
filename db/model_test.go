@@ -51,6 +51,15 @@ func TestModel(t *testing.T) {
 		}
 		i++
 	}
+	testNil := func(got, expected interface{}) {
+		t.Helper()
+		if got == expected {
+			t.Logf("case %d passed", i)
+		} else {
+			t.Errorf("case %d failed, not nil: %+v", i, got)
+		}
+		i++
+	}
 
 	m0 := NewModelSlim(admin{})
 	testS(m0.tableName, "admins")
@@ -59,6 +68,8 @@ func TestModel(t *testing.T) {
 	testI(len(p.PermittedFields()), 0)
 
 	m1 := NewModel(admin{})
+	testS(m1.FieldByName("Name").ColumnName, "name")
+	testNil(m1.FieldByName("name"), (*field)(nil))
 	testS(m1.tableName, "admins")
 	testI(len(m1.modelFields), 3)
 	p = m1.Permit()

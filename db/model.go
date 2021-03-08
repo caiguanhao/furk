@@ -77,6 +77,16 @@ func (m Model) TableName() string {
 	return m.tableName
 }
 
+// get field by struct name, nil will be returned if no such field
+func (m Model) FieldByName(name string) *field {
+	for _, f := range m.modelFields {
+		if f.Name == name {
+			return &f
+		}
+	}
+	return nil
+}
+
 // generate CREATE TABLE statement
 func (m Model) Schema() string {
 	sql := []string{}
@@ -286,6 +296,27 @@ func (m Model) MustCount(values ...interface{}) int {
 // a helper to create and execute SELECT COUNT(*) statement
 func (m Model) Count(values ...interface{}) (count int, err error) {
 	err = m.Select("COUNT(*)", values...).QueryRow(&count)
+	return
+}
+
+// Just like Exists(), panics if connection error; returns true if record exists, false if not
+func (m Model) MustExists(values ...interface{}) bool {
+	exists, err := m.Exists(values...)
+	if err != nil {
+		panic(err)
+	}
+	return exists
+}
+
+// Helper function to create and execute SELECT 1 AS one statement
+func (m Model) Exists(values ...interface{}) (exists bool, err error) {
+	var ret int
+	err = m.Select("1 AS one", values...).QueryRow(&ret)
+	if err == m.connection.ErrNoRows() {
+		err = nil
+		return
+	}
+	exists = ret == 1
 	return
 }
 

@@ -124,6 +124,12 @@ func testCRUD(t *testing.T, conn db.DB) {
 	}
 	testI(t, "first order id", id, 1)
 
+	exists := model.MustExists("WHERE id = $1", id)
+	testB(t, "first order exists", exists)
+
+	exists2 := model.MustExists("WHERE id = $1", id+1)
+	testB(t, "first order exists #2", exists2 == false)
+
 	err = model.Insert(
 		model.Changes(db.RawChanges{
 			"Status": "new",
