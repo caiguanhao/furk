@@ -85,6 +85,10 @@ func TestModel(t *testing.T) {
 		"Id":   1,
 		"Name": "haha"
 	}`))), 1)
+	testI(len(p.Filter(struct {
+		Id   int
+		Name string
+	}{})), 1)
 	p = m1.Permit()
 	testI(len(p.PermittedFields()), 0)
 	testI(len(p.Filter(map[string]interface{}{

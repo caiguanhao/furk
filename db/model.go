@@ -93,7 +93,7 @@ func (m Model) Schema() string {
 	for _, jsonbField := range m.jsonbColumns {
 		dataType := jsonbDataType[jsonbField]
 		if dataType == "" {
-			dataType = "jsonb"
+			dataType = "jsonb DEFAULT '{}'::jsonb NOT NULL"
 		}
 		sql = append(sql, "\t"+jsonbField+" "+dataType)
 	}
@@ -204,6 +204,22 @@ func (m ModelWithPermittedFields) Filter(inputs ...interface{}) (out Changes) {
 			if json.NewDecoder(in).Decode(&c) == nil {
 				m.filterPermits(c, &out)
 			}
+		default:
+			rt := reflect.TypeOf(in)
+			if rt.Kind() == reflect.Struct {
+				rv := reflect.ValueOf(in)
+				fields := map[string]field{}
+				for _, i := range m.permittedFieldsIdx {
+					field := m.modelFields[i]
+					fields[field.Name] = field
+				}
+				for i := 0; i < rt.NumField(); i++ {
+					if field, ok := fields[rt.Field(i).Name]; ok {
+						out[field] = rv.Field(i).Interface()
+					}
+				}
+			}
+
 		}
 	}
 	return
