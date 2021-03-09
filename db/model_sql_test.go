@@ -150,6 +150,16 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testI(t, "ids length", len(ids), 2)
 	testI(t, "id 0", ids[0], 1)
 	testI(t, "id 1", ids[1], 2)
+	id2status := map[int]string{}
+	model.Select("id, status").MustQuery(&id2status)
+	testI(t, "map length", len(id2status), 2)
+	testS(t, "map 0", id2status[1], "new")
+	testS(t, "map 1", id2status[2], "new2")
+	var status2id map[string]int
+	model.Select("status, id").MustQuery(&status2id)
+	testI(t, "map length", len(status2id), 2)
+	testI(t, "map 0", status2id["new"], 1)
+	testI(t, "map 1", status2id["new2"], 2)
 	var createdAts []time.Time
 	model.Select("created_at").MustQuery(&createdAts)
 	testI(t, "created_at length", len(createdAts), 2)

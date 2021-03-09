@@ -85,6 +85,28 @@ func (s sqlWithValues) Query(target interface{}) error {
 		rv := reflect.Indirect(reflect.ValueOf(target))
 		s.log(s.sql, s.values)
 		return s.scan(rv, s.model.connection.QueryRow(s.sql, s.values...))
+	} else if kind == reflect.Map {
+		s.log(s.sql, s.values)
+		rows, err := s.model.connection.Query(s.sql, s.values...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		rv := reflect.Indirect(reflect.ValueOf(target))
+		if rv.IsNil() {
+			rv.Set(reflect.MakeMapWithSize(rt, 0))
+		}
+		mapKeyType := rt.Key()
+		mapValueType := rt.Elem()
+		for rows.Next() {
+			newKey := reflect.New(mapKeyType).Elem()
+			newValue := reflect.New(mapValueType).Elem()
+			if err := rows.Scan(newKey.Addr().Interface(), newValue.Addr().Interface()); err != nil {
+				return err
+			}
+			rv.SetMapIndex(newKey, newValue)
+		}
+		return rows.Err()
 	} else if kind != reflect.Slice {
 		return ErrInvalidTarget
 	}
