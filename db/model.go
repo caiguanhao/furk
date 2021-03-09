@@ -18,6 +18,7 @@ type (
 	Model struct {
 		connection   DB
 		logger       logger.Logger
+		structType   reflect.Type
 		tableName    string
 		modelFields  []field
 		jsonbColumns []string
@@ -51,9 +52,7 @@ var (
 
 // initialize a model from a struct
 func NewModel(object interface{}) (m *Model) {
-	m = &Model{
-		tableName: ToTableName(object),
-	}
+	m = NewModelSlim(object)
 	m.modelFields, m.jsonbColumns = m.parseStruct(object)
 	return
 }
@@ -61,7 +60,8 @@ func NewModel(object interface{}) (m *Model) {
 // initialize a model from a struct without parsing
 func NewModelSlim(object interface{}) (m *Model) {
 	m = &Model{
-		tableName: ToTableName(object),
+		tableName:  ToTableName(object),
+		structType: reflect.TypeOf(object),
 	}
 	return
 }

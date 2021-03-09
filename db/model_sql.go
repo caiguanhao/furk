@@ -96,24 +96,20 @@ func (s sqlWithValues) Query(target interface{}) error {
 		return err
 	}
 	defer rows.Close()
-	i := 0
 	v := reflect.Indirect(reflect.ValueOf(target))
 	for rows.Next() {
-		if i >= v.Len() {
-			v.Set(reflect.Append(v, reflect.New(rt).Elem()))
-		}
-		rv := v.Index(i)
+		rv := reflect.New(rt).Elem()
 		if err := s.scan(rv, rows); err != nil {
 			return err
 		}
-		i += 1
+		v.Set(reflect.Append(v, rv))
 	}
 	return rows.Err()
 }
 
 // scan a scannable (Row or Rows) into every field of a struct
 func (s sqlWithValues) scan(rv reflect.Value, scannable Scannable) error {
-	if rv.Kind() != reflect.Struct {
+	if rv.Kind() != reflect.Struct || rv.Type() != s.model.structType {
 		return scannable.Scan(rv.Addr().Interface())
 	}
 	f := rv.FieldByName(tableNameField)

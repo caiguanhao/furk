@@ -150,6 +150,13 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testI(t, "ids length", len(ids), 2)
 	testI(t, "id 0", ids[0], 1)
 	testI(t, "id 1", ids[1], 2)
+	var createdAts []time.Time
+	model.Select("created_at").MustQuery(&createdAts)
+	testI(t, "created_at length", len(createdAts), 2)
+	d1 := time.Since(createdAts[0])
+	d2 := time.Since(createdAts[1])
+	testB(t, "created_at 0", d1 > 0 && d1 < 200*time.Millisecond)
+	testB(t, "created_at 1", d2 > 0 && d2 < 200*time.Millisecond)
 
 	var firstOrder order
 	err = model.Find("ORDER BY created_at ASC").Query(&firstOrder)
