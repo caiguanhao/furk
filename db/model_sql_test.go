@@ -132,13 +132,24 @@ func testCRUD(t *testing.T, conn db.DB) {
 
 	err = model.Insert(
 		model.Changes(db.RawChanges{
-			"Status": "new",
+			"Status": "new2",
 		}),
 	)("RETURNING id").QueryRow(&id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	testI(t, "second order id", id, 2)
+
+	var statuses []string
+	model.Select("status").MustQuery(&statuses)
+	testI(t, "statuses length", len(statuses), 2)
+	testS(t, "status 0", statuses[0], "new")
+	testS(t, "status 1", statuses[1], "new2")
+	var ids []int
+	model.Select("id").MustQuery(&ids)
+	testI(t, "ids length", len(ids), 2)
+	testI(t, "id 0", ids[0], 1)
+	testI(t, "id 1", ids[1], 2)
 
 	var firstOrder order
 	err = model.Find("ORDER BY created_at ASC").Query(&firstOrder)

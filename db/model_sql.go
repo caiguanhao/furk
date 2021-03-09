@@ -113,6 +113,9 @@ func (s sqlWithValues) Query(target interface{}) error {
 
 // scan a scannable (Row or Rows) into every field of a struct
 func (s sqlWithValues) scan(rv reflect.Value, scannable Scannable) error {
+	if rv.Kind() != reflect.Struct {
+		return scannable.Scan(rv.Addr().Interface())
+	}
 	f := rv.FieldByName(tableNameField)
 	if f.Kind() == reflect.String {
 		// hack
