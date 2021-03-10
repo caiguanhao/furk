@@ -36,6 +36,14 @@ type (
 		FieldInJsonb string `jsonb:"meta"`
 		OtherJsonb   string `json:"otherjsonb" jsonb:"meta"`
 		jsonbTest    int    `json:"testjsonb" column:"JSONBTEST" jsonb:"meta"`
+		BadType      int    `jsonb:"meta"`
+		Sources      []struct {
+			Name string
+		} `jsonb:"meta"`
+		Sources2 map[string]int `jsonb:"meta2"`
+		Sources3 struct {
+			Word string
+		} `jsonb:"meta3"`
 	}
 )
 
@@ -95,7 +103,18 @@ func testCRUD(t *testing.T, conn db.DB) {
 		"NotAllowed": "foo",
 		"FieldInJsonb": "yes",
 		"otherjsonb": "no",
-		"testjsonb": 123
+		"testjsonb": 123,
+		"BadType": "string",
+		"Sources": [{
+			"Name": "yes",
+			"baddata": "foobar"
+		}],
+		"Sources2": {
+			"cash": 100
+		},
+		"Sources3": {
+			"Word": "finish"
+		}
 	}`)
 	var createData map[string]interface{}
 	if err := json.NewDecoder(createInput).Decode(&createData); err != nil {
@@ -109,7 +128,7 @@ func testCRUD(t *testing.T, conn db.DB) {
 	err = model.Insert(
 		model.Permit(
 			"Status", "TradeNumber", "UserId", "FieldInJsonb", "OtherJsonb",
-			"jsonbTest", "TotalAmount",
+			"jsonbTest", "TotalAmount", "BadType", "Sources", "Sources2", "Sources3",
 		).Filter(createData),
 		model.Changes(db.RawChanges{
 			"name":   "foobar",
@@ -123,6 +142,17 @@ func testCRUD(t *testing.T, conn db.DB) {
 		t.Fatal(err)
 	}
 	testI(t, "first order id", id, 1)
+
+	var badType, sources, sources2, sources3 string
+	model.Select(
+		"COALESCE(meta->>'bad_type', 'empty'), meta->>'sources', meta2::text, meta3::text",
+	).MustQueryRow(&badType, &sources, &sources2, &sources3)
+	// field with wrong type is skipped, so empty is returned
+	testS(t, "first order bad type", badType, "empty")
+	// unwanted content "baddata" is filtered
+	testS(t, "first order sources", sources, `[{"Name": "yes"}]`)
+	testS(t, "first order sources 2", sources2, `{"sources2": {"cash": 100}}`)      // map
+	testS(t, "first order sources 3", sources3, `{"sources3": {"Word": "finish"}}`) // struct
 
 	exists := model.MustExists("WHERE id = $1", id)
 	testB(t, "first order exists", exists)
