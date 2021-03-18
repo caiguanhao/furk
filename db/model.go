@@ -241,22 +241,19 @@ func (m ModelWithPermittedFields) filterPermits(in RawChanges, out *Changes) {
 		if _, ok := in[field.JsonName]; !ok {
 			continue
 		}
-		// if field is a jsonb field, filter incorrect type or unwanted content
-		if field.Jsonb != "" {
-			f, ok := m.structType.FieldByName(field.Name)
-			if !ok {
-				continue
-			}
-			x := reflect.New(f.Type).Interface()
-			if v, err := json.Marshal(in[field.JsonName]); err == nil {
-				if err := json.Unmarshal(v, x); err != nil {
-					continue
-				}
-			}
-			(*out)[field] = x
+		f, ok := m.structType.FieldByName(field.Name)
+		if !ok {
 			continue
 		}
-		(*out)[field] = in[field.JsonName]
+		v, err := json.Marshal(in[field.JsonName])
+		if err != nil {
+			continue
+		}
+		x := reflect.New(f.Type)
+		if err := json.Unmarshal(v, x.Interface()); err != nil {
+			continue
+		}
+		(*out)[field] = x.Elem().Interface()
 	}
 }
 

@@ -2,9 +2,12 @@ package db_test
 
 import (
 	"context"
+	"crypto/md5"
 	"crypto/rand"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -32,6 +35,7 @@ type (
 		title       string `column:"title,options"`
 		Ignored     string `column:"-"`
 		ignored     string
+		Password    password
 
 		FieldInJsonb string `jsonb:"meta"`
 		OtherJsonb   string `json:"otherjsonb" jsonb:"meta"`
@@ -45,7 +49,54 @@ type (
 			Word string
 		} `jsonb:"meta3"`
 	}
+
+	password struct {
+		hashed string
+		clear  string
+	}
 )
+
+func (p password) String() string {
+	return p.hashed
+}
+
+func (p *password) Update(password string) {
+	p.hashed = fmt.Sprintf("%x", md5.Sum([]byte(password)))
+	p.clear = password
+}
+
+func (p password) Equal(password string) bool {
+	return fmt.Sprintf("%x", md5.Sum([]byte(password))) == p.hashed
+}
+
+func (p *password) Scan(src interface{}) error {
+	if value, ok := src.(string); ok {
+		*p = password{
+			hashed: value,
+		}
+	}
+	return nil
+}
+
+func (p password) Value() (driver.Value, error) {
+	return p.hashed, nil
+}
+
+func (p password) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.clear)
+}
+
+func (p *password) UnmarshalJSON(t []byte) error {
+	var value string
+	if err := json.Unmarshal(t, &value); err != nil {
+		return err
+	}
+	*p = password{}
+	if value != "" {
+		p.Update(value)
+	}
+	return nil
+}
 
 var connStr string
 
@@ -101,6 +152,7 @@ func testCRUD(t *testing.T, conn db.DB) {
 		"TotalAmount": "` + totalAmount.String() + `",
 		"foobar_user_id": 1,
 		"NotAllowed": "foo",
+		"Password": "123123",
 		"FieldInJsonb": "yes",
 		"otherjsonb": "no",
 		"testjsonb": 123,
@@ -127,7 +179,7 @@ func testCRUD(t *testing.T, conn db.DB) {
 	var id int
 	err = model.Insert(
 		model.Permit(
-			"Status", "TradeNumber", "UserId", "FieldInJsonb", "OtherJsonb",
+			"Status", "TradeNumber", "UserId", "Password", "FieldInJsonb", "OtherJsonb",
 			"jsonbTest", "TotalAmount", "BadType", "Sources", "Sources2", "Sources3",
 		).Filter(createData),
 		model.Changes(db.RawChanges{
@@ -216,6 +268,8 @@ func testCRUD(t *testing.T, conn db.DB) {
 	testB(t, "order updated at", ua > 0 && ua < 200*time.Millisecond)
 	testS(t, "order ignored", firstOrder.Ignored, "")
 	testS(t, "order ignored #2", firstOrder.ignored, "")
+	testS(t, "order password", firstOrder.Password.String(), "4297f44b13955235245b2497399d7a93")
+	testB(t, "order password 2", firstOrder.Password.Equal("123123"))
 	testS(t, "order FieldInJsonb", firstOrder.FieldInJsonb, "yes")
 	testS(t, "order OtherJsonb", firstOrder.OtherJsonb, "no")
 	testI(t, "order jsonbTest", firstOrder.jsonbTest, 123)
