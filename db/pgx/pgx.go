@@ -26,6 +26,14 @@ type (
 	}
 )
 
+func MustOpen(conn string) db.DB {
+	c, err := Open(conn)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
 func Open(conn string) (db.DB, error) {
 	pool, err := pgxpool.Connect(context.Background(), conn)
 	if err != nil {
