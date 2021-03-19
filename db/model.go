@@ -107,7 +107,15 @@ func (m Model) Schema() string {
 		}
 		sql = append(sql, "\t"+jsonbField+" "+dataType)
 	}
-	return "CREATE TABLE " + m.tableName + " (\n" + strings.Join(sql, ",\n") + "\n);\n"
+	out := "CREATE TABLE " + m.tableName + " (\n" + strings.Join(sql, ",\n") + "\n);\n"
+	n := reflect.New(m.structType).Interface()
+	if a, ok := n.(interface{ BeforeCreateSchema() string }); ok {
+		out = a.BeforeCreateSchema() + "\n\n" + out
+	}
+	if a, ok := n.(interface{ AfterCreateSchema() string }); ok {
+		out += "\n" + a.AfterCreateSchema() + "\n"
+	}
+	return out
 }
 
 // generate DROP TABLE statement
