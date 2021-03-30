@@ -69,7 +69,7 @@ func TestModel(t *testing.T) {
 
 	m1 := NewModel(admin{})
 	testS(m1.FieldByName("Name").ColumnName, "name")
-	testNil(m1.FieldByName("name"), (*field)(nil))
+	testNil(m1.FieldByName("name"), (*Field)(nil))
 	testS(m1.tableName, "admins")
 	testI(len(m1.modelFields), 3)
 	p = m1.Permit()
@@ -124,7 +124,7 @@ func TestModel(t *testing.T) {
 		"BadData": "foobar",
 	})
 	testI(len(c), 1)
-	var f field
+	var f Field
 	for _f := range c {
 		f = _f
 		break

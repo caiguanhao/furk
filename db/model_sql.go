@@ -28,7 +28,7 @@ type (
 		Before, After  func(context.Context, Tx) error
 	}
 
-	sqlWithValues struct {
+	SQLWithValues struct {
 		model  *Model
 		sql    string
 		values []interface{}
@@ -48,20 +48,20 @@ func (j *jsonbRaw) Scan(src interface{}) error { // necessary for github.com/lib
 	return json.Unmarshal(source, j)
 }
 
-func (m Model) NewSQLWithValues(sql string, values ...interface{}) sqlWithValues {
+func (m Model) NewSQLWithValues(sql string, values ...interface{}) SQLWithValues {
 	sql = strings.TrimSpace(sql)
-	return sqlWithValues{
+	return SQLWithValues{
 		model:  &m,
 		sql:    sql,
 		values: values,
 	}
 }
 
-func (s sqlWithValues) String() string {
+func (s SQLWithValues) String() string {
 	return s.sql
 }
 
-func (s sqlWithValues) MustQuery(target interface{}) {
+func (s SQLWithValues) MustQuery(target interface{}) {
 	if err := s.Query(target); err != nil {
 		panic(err)
 	}
@@ -69,7 +69,7 @@ func (s sqlWithValues) MustQuery(target interface{}) {
 
 // get one (if target is a pointer of struct) or all results (if target is a
 // pointer of a slice of struct) from database
-func (s sqlWithValues) Query(target interface{}) error {
+func (s SQLWithValues) Query(target interface{}) error {
 	if s.model.connection == nil {
 		return ErrNoConnection
 	}
@@ -130,7 +130,7 @@ func (s sqlWithValues) Query(target interface{}) error {
 }
 
 // scan a scannable (Row or Rows) into every field of a struct
-func (s sqlWithValues) scan(rv reflect.Value, scannable Scannable) error {
+func (s SQLWithValues) scan(rv reflect.Value, scannable Scannable) error {
 	if rv.Kind() != reflect.Struct || rv.Type() != s.model.structType {
 		return scannable.Scan(rv.Addr().Interface())
 	}
@@ -186,50 +186,50 @@ func (s sqlWithValues) scan(rv reflect.Value, scannable Scannable) error {
 	return nil
 }
 
-func (s sqlWithValues) MustQueryRow(dest ...interface{}) {
+func (s SQLWithValues) MustQueryRow(dest ...interface{}) {
 	if err := s.QueryRow(dest...); err != nil {
 		panic(err)
 	}
 }
 
 // get returning results from an INSERT INTO statement
-func (s sqlWithValues) QueryRow(dest ...interface{}) error {
+func (s SQLWithValues) QueryRow(dest ...interface{}) error {
 	return s.QueryRowInTransaction(nil, dest...)
 }
 
-func (s sqlWithValues) MustQueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) {
+func (s SQLWithValues) MustQueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) {
 	if err := s.QueryRowInTransaction(txOpts, dest...); err != nil {
 		panic(err)
 	}
 }
 
-func (s sqlWithValues) QueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) error {
+func (s SQLWithValues) QueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) error {
 	return s.execute(actionQueryRow, txOpts, dest...)
 }
 
-func (s sqlWithValues) MustExecute(dest ...interface{}) {
+func (s SQLWithValues) MustExecute(dest ...interface{}) {
 	if err := s.Execute(dest...); err != nil {
 		panic(err)
 	}
 }
 
 // execute statements like INSERT INTO, UPDATE, DELETE and get rows affected
-func (s sqlWithValues) Execute(dest ...interface{}) error {
+func (s SQLWithValues) Execute(dest ...interface{}) error {
 	return s.ExecuteInTransaction(nil, dest...)
 }
 
-func (s sqlWithValues) MustExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) {
+func (s SQLWithValues) MustExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) {
 	if err := s.ExecuteInTransaction(txOpts, dest...); err != nil {
 		panic(err)
 	}
 }
 
-func (s sqlWithValues) ExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) error {
+func (s SQLWithValues) ExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) error {
 	return s.execute(actionExecute, txOpts, dest...)
 }
 
 // execute a transaction
-func (s sqlWithValues) ExecTx(tx Tx, ctx context.Context, dest ...interface{}) (err error) {
+func (s SQLWithValues) ExecTx(tx Tx, ctx context.Context, dest ...interface{}) (err error) {
 	if s.model.connection == nil {
 		err = ErrNoConnection
 		return
@@ -239,7 +239,7 @@ func (s sqlWithValues) ExecTx(tx Tx, ctx context.Context, dest ...interface{}) (
 	return
 }
 
-func (s sqlWithValues) execute(action int, txOpts *TxOptions, dest ...interface{}) (err error) {
+func (s SQLWithValues) execute(action int, txOpts *TxOptions, dest ...interface{}) (err error) {
 	if s.model.connection == nil {
 		err = ErrNoConnection
 		return
@@ -295,7 +295,7 @@ func (s sqlWithValues) execute(action int, txOpts *TxOptions, dest ...interface{
 	return
 }
 
-func (s sqlWithValues) log(sql string, args []interface{}) {
+func (s SQLWithValues) log(sql string, args []interface{}) {
 	if s.model.logger == nil {
 		return
 	}

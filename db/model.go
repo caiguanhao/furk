@@ -20,7 +20,7 @@ type (
 		logger       logger.Logger
 		structType   reflect.Type
 		tableName    string
-		modelFields  []field
+		modelFields  []Field
 		jsonbColumns []string
 	}
 
@@ -33,7 +33,7 @@ type (
 		TableName() string
 	}
 
-	field struct {
+	Field struct {
 		Name       string // struct field name
 		ColumnName string // column name (or jsonb key name) in database
 		JsonName   string // key name in json input and output
@@ -43,7 +43,7 @@ type (
 	}
 
 	RawChanges map[string]interface{}
-	Changes    map[field]interface{}
+	Changes    map[Field]interface{}
 )
 
 var (
@@ -78,7 +78,7 @@ func (m Model) TableName() string {
 }
 
 // get field by struct name, nil will be returned if no such field
-func (m Model) FieldByName(name string) *field {
+func (m Model) FieldByName(name string) *Field {
 	for _, f := range m.modelFields {
 		if f.Name == name {
 			return &f
@@ -226,7 +226,7 @@ func (m ModelWithPermittedFields) Filter(inputs ...interface{}) (out Changes) {
 			rt := reflect.TypeOf(in)
 			if rt.Kind() == reflect.Struct {
 				rv := reflect.ValueOf(in)
-				fields := map[string]field{}
+				fields := map[string]Field{}
 				for _, i := range m.permittedFieldsIdx {
 					field := m.modelFields[i]
 					fields[field.Name] = field
@@ -278,7 +278,7 @@ func (m Model) Changes(in RawChanges) (out Changes) {
 }
 
 // create a SELECT statement
-func (m Model) Find(values ...interface{}) sqlWithValues {
+func (m Model) Find(values ...interface{}) SQLWithValues {
 	fields := []string{}
 	for _, field := range m.modelFields {
 		if field.Jsonb != "" {
@@ -293,7 +293,7 @@ func (m Model) Find(values ...interface{}) sqlWithValues {
 }
 
 // create a SELECT statement with custom fields
-func (m Model) Select(fields string, values ...interface{}) sqlWithValues {
+func (m Model) Select(fields string, values ...interface{}) SQLWithValues {
 	var where string
 	if len(values) > 0 {
 		if w, ok := values[0].(string); ok {
@@ -373,8 +373,8 @@ func (m Model) Assign(i interface{}, lotsOfChanges ...Changes) (out []Changes, e
 }
 
 // convert Changes to an INSERT INTO statement
-func (m Model) Insert(lotsOfChanges ...Changes) func(...string) sqlWithValues {
-	return func(args ...string) sqlWithValues {
+func (m Model) Insert(lotsOfChanges ...Changes) func(...string) SQLWithValues {
+	return func(args ...string) SQLWithValues {
 		var suffix string
 		if len(args) > 0 {
 			suffix = args[0]
@@ -422,8 +422,8 @@ func (m Model) Insert(lotsOfChanges ...Changes) func(...string) sqlWithValues {
 }
 
 // convert Changes to an UPDATE statement
-func (m Model) Update(lotsOfChanges ...Changes) func(...interface{}) sqlWithValues {
-	return func(args ...interface{}) sqlWithValues {
+func (m Model) Update(lotsOfChanges ...Changes) func(...interface{}) SQLWithValues {
+	return func(args ...interface{}) SQLWithValues {
 		var where string
 		if len(args) > 0 {
 			if w, ok := args[0].(string); ok {
@@ -472,7 +472,7 @@ func (m Model) Update(lotsOfChanges ...Changes) func(...interface{}) sqlWithValu
 }
 
 // create a DELETE FROM statement
-func (m Model) Delete(values ...interface{}) sqlWithValues {
+func (m Model) Delete(values ...interface{}) SQLWithValues {
 	var where string
 	if len(values) > 0 {
 		if w, ok := values[0].(string); ok {
@@ -499,7 +499,7 @@ func (m Model) UpdatedAt() Changes {
 }
 
 // parseStruct collects column names, json names and jsonb names
-func (m *Model) parseStruct(obj interface{}) (fields []field, jsonbColumns []string) {
+func (m *Model) parseStruct(obj interface{}) (fields []Field, jsonbColumns []string) {
 	var rt reflect.Type
 	if o, ok := obj.(reflect.Type); ok {
 		rt = o
@@ -598,7 +598,7 @@ func (m *Model) parseStruct(obj interface{}) (fields []field, jsonbColumns []str
 			}
 		}
 
-		fields = append(fields, field{
+		fields = append(fields, Field{
 			Name:       f.Name,
 			Exported:   f.PkgPath == "",
 			ColumnName: columnName,

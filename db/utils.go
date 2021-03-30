@@ -7,7 +7,12 @@ import (
 )
 
 var (
+	// Function to convert a name to table or column name used in database,
+	// by default uses DefaultColumnizer which converts "CamelCase" to "snake_case".
 	Columnizer func(string) string = DefaultColumnizer
+
+	// Function to convert table name to its plural form.
+	// By default, table name uses plural form.
 	Pluralizer func(string) string = DefaultPluralizer
 )
 
@@ -15,8 +20,16 @@ const (
 	tableNameField = "__TABLE_NAME__"
 )
 
-// get table name from struct
-// struct.TableName() > struct.__TABLE_NAME__ > struct.Name()
+// Get table name from a struct. If a struct has "TableName() string" function,
+// then the return value of the function will be used. If a struct has a field
+// named "__TABLE_NAME__", then value of the field tag will be used. Otherwise,
+// the name of the struct will be used. If name is empty, "error_no_table_name"
+// is returned.
+// Examples:
+//  - type Product struct{}; func (_ Product) TableName() string { return "foobar" }; ToTableName(Product{}) == "foobar"
+//  - ToTableName(struct { __TABLE_NAME__ string `users` }{}) == "users"
+//  - type Product struct{}; ToTableName(Product{}) == "products"
+//  - ToTableName(struct{}{}) == "error_no_table_name"
 func ToTableName(object interface{}) (name string) {
 	if o, ok := object.(ModelWithTableName); ok {
 		name = o.TableName()
@@ -42,15 +55,20 @@ func ToTableName(object interface{}) (name string) {
 	return
 }
 
-// convert to name used in database
+// Function to convert struct name to name used in database, using the Columnizer function.
 func ToColumnName(in string) string {
 	return Columnizer(strings.TrimSpace(in))
 }
 
+// Default function to convert "CamelCase" struct name to "snake_case" column
+// name used in database. For example, "FullName" will be converted to "full_name".
 func DefaultColumnizer(in string) string {
 	return camelCaseToUnderscore(in)
 }
 
+// Default function to convert a word to its plural form. Add "es" for "s" or "o" ending,
+// "y" ending will be replaced with "ies", for other endings, add "s".
+// For example, "product" will be converted to "products".
 func DefaultPluralizer(in string) string {
 	if strings.HasSuffix(in, "y") {
 		return in[:len(in)-1] + "ies"
