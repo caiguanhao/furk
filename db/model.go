@@ -50,14 +50,16 @@ var (
 	ErrMustBePointer = errors.New("must be pointer")
 )
 
-// initialize a model from a struct
+// Initialize a Model from a struct.
 func NewModel(object interface{}) (m *Model) {
 	m = NewModelSlim(object)
 	m.modelFields, m.jsonbColumns = m.parseStruct(object)
 	return
 }
 
-// initialize a model from a struct without parsing
+// Initialize a Model from a struct without parsing fields of the struct.
+// Useful if you are calling functions that don't need fields, for example:
+//  db.NewModelSlim(models.User{}).SetConnection(conn).MustCount()
 func NewModelSlim(object interface{}) (m *Model) {
 	m = &Model{
 		tableName:  ToTableName(object),
@@ -66,18 +68,17 @@ func NewModelSlim(object interface{}) (m *Model) {
 	return
 }
 
-// get table name of a model (see ToTableName())
 func (m Model) String() string {
 	return `model (table: "` + m.tableName + `") has ` +
 		strconv.Itoa(len(m.modelFields)) + " modelFields"
 }
 
-// get table name of a model (see ToTableName())
+// Table name of the Model (see ToTableName()).
 func (m Model) TableName() string {
 	return m.tableName
 }
 
-// get field by struct name, nil will be returned if no such field
+// Get field by struct field name, nil will be returned if no such field.
 func (m Model) FieldByName(name string) *Field {
 	for _, f := range m.modelFields {
 		if f.Name == name {
@@ -87,7 +88,36 @@ func (m Model) FieldByName(name string) *Field {
 	return nil
 }
 
-// generate CREATE TABLE statement
+// Generate CREATE TABLE SQL statement from a Model.
+//  | Go Type                                        | PostgreSQL Data Type |
+//  |------------------------------------------------|----------------------|
+//  | int8 / int16 / int32 / uint8 / uint16 / uint32 | integer              |
+//  | int64 / uint64 / int / uint                    | bigint               |
+//  | time.Time                                      | timestamptz          |
+//  | float32 / float64 / decimal.Decimal            | numeric              |
+//  | bool                                           | boolean              |
+//  | other                                          | text                 |
+// You can use "dataType" tag to customize the data type. "NOT NULL" is added
+// if the struct field is not a pointer.
+//  db.NewModel(struct {
+//  	__TABLE_NAME__ string `users`
+//
+//  	Id        int
+//  	Name      string
+//  	Age       *int
+//  	CreatedAt time.Time
+//  	DeletedAt *time.Time `dataType:"timestamptz"`
+//  	FullName  string     `jsonb:"meta"`
+//  	NickName  string     `jsonb:"meta"`
+//  }{}).Schema()
+//  // CREATE TABLE users (
+//  //         id SERIAL PRIMARY KEY,
+//  //         name text DEFAULT ''::text NOT NULL,
+//  //         age bigint DEFAULT 0,
+//  //         created_at timestamptz DEFAULT NOW() NOT NULL,
+//  //         deleted_at timestamptz,
+//  //         meta jsonb DEFAULT '{}'::jsonb NOT NULL
+//  // );
 func (m Model) Schema() string {
 	sql := []string{}
 	jsonbDataType := map[string]string{}
@@ -118,18 +148,18 @@ func (m Model) Schema() string {
 	return out
 }
 
-// generate DROP TABLE statement
+// Generate DROP TABLE ("DROP TABLE IF EXISTS <table_name>;") SQL statement from a Model.
 func (m Model) DropSchema() string {
 	return "DROP TABLE IF EXISTS " + m.tableName + ";\n"
 }
 
-// set a database connection
+// Set a database connection for the Model.
 func (m *Model) SetConnection(db DB) *Model {
 	m.connection = db
 	return m
 }
 
-// set the logger
+// Set the logger for the Model.
 func (m *Model) SetLogger(logger logger.Logger) *Model {
 	m.logger = logger
 	return m
