@@ -21,6 +21,10 @@ import (
 )
 
 type (
+	test struct {
+		*testing.T
+	}
+
 	order struct {
 		__TABLE_NAME__ string `orders`
 
@@ -123,7 +127,9 @@ func TestCRUDInPGX(t *testing.T) {
 	testCRUD(t, conn)
 }
 
-func testCRUD(t *testing.T, conn db.DB) {
+func testCRUD(_t *testing.T, conn db.DB) {
+	t := test{_t}
+
 	o := db.NewModel(order{})
 	o.SetConnection(conn)
 	o.SetLogger(logger.StandardLogger)
@@ -193,24 +199,24 @@ func testCRUD(t *testing.T, conn db.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "first order id", id, 1)
+	t.Int("first order id", id, 1)
 
 	var badType, sources, sources2, sources3 string
 	model.Select(
 		"COALESCE(meta->>'bad_type', 'empty'), meta->>'sources', meta2::text, meta3::text",
 	).MustQueryRow(&badType, &sources, &sources2, &sources3)
 	// field with wrong type is skipped, so empty is returned
-	testS(t, "first order bad type", badType, "empty")
+	t.String("first order bad type", badType, "empty")
 	// unwanted content "baddata" is filtered
-	testS(t, "first order sources", sources, `[{"Name": "yes"}]`)
-	testS(t, "first order sources 2", sources2, `{"sources2": {"cash": 100}}`)      // map
-	testS(t, "first order sources 3", sources3, `{"sources3": {"Word": "finish"}}`) // struct
+	t.String("first order sources", sources, `[{"Name": "yes"}]`)
+	t.String("first order sources 2", sources2, `{"sources2": {"cash": 100}}`)      // map
+	t.String("first order sources 3", sources3, `{"sources3": {"Word": "finish"}}`) // struct
 
 	exists := model.MustExists("WHERE id = $1", id)
-	testB(t, "first order exists", exists)
+	t.Bool("first order exists", exists)
 
 	exists2 := model.MustExists("WHERE id = $1", id+1)
-	testB(t, "first order exists #2", exists2 == false)
+	t.Bool("first order exists #2", exists2 == false)
 
 	err = model.Insert(
 		model.Changes(db.RawChanges{
@@ -220,88 +226,88 @@ func testCRUD(t *testing.T, conn db.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "second order id", id, 2)
+	t.Int("second order id", id, 2)
 
 	var statuses []string
 	model.Select("status").MustQuery(&statuses)
-	testI(t, "statuses length", len(statuses), 2)
-	testS(t, "status 0", statuses[0], "new")
-	testS(t, "status 1", statuses[1], "new2")
+	t.Int("statuses length", len(statuses), 2)
+	t.String("status 0", statuses[0], "new")
+	t.String("status 1", statuses[1], "new2")
 	var ids []int
 	model.Select("id").MustQuery(&ids)
-	testI(t, "ids length", len(ids), 2)
-	testI(t, "id 0", ids[0], 1)
-	testI(t, "id 1", ids[1], 2)
+	t.Int("ids length", len(ids), 2)
+	t.Int("id 0", ids[0], 1)
+	t.Int("id 1", ids[1], 2)
 	id2status := map[int]string{}
 	model.Select("id, status").MustQuery(&id2status)
-	testI(t, "map length", len(id2status), 2)
-	testS(t, "map 0", id2status[1], "new")
-	testS(t, "map 1", id2status[2], "new2")
+	t.Int("map length", len(id2status), 2)
+	t.String("map 0", id2status[1], "new")
+	t.String("map 1", id2status[2], "new2")
 	var status2id map[string]int
 	model.Select("status, id").MustQuery(&status2id)
-	testI(t, "map length", len(status2id), 2)
-	testI(t, "map 0", status2id["new"], 1)
-	testI(t, "map 1", status2id["new2"], 2)
+	t.Int("map length", len(status2id), 2)
+	t.Int("map 0", status2id["new"], 1)
+	t.Int("map 1", status2id["new2"], 2)
 	var createdAts []time.Time
 	model.Select("created_at").MustQuery(&createdAts)
-	testI(t, "created_at length", len(createdAts), 2)
+	t.Int("created_at length", len(createdAts), 2)
 	d1 := time.Since(createdAts[0])
 	d2 := time.Since(createdAts[1])
-	testB(t, "created_at 0", d1 > 0 && d1 < 200*time.Millisecond)
-	testB(t, "created_at 1", d2 > 0 && d2 < 200*time.Millisecond)
+	t.Bool("created_at 0", d1 > 0 && d1 < 200*time.Millisecond)
+	t.Bool("created_at 1", d2 > 0 && d2 < 200*time.Millisecond)
 
 	var firstOrder order
 	err = model.Find("ORDER BY created_at ASC").Query(&firstOrder)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "order id", firstOrder.Id, 1)
-	testS(t, "order status", firstOrder.Status, "new")
-	testS(t, "order trade number", firstOrder.TradeNumber, tradeNo)
-	testD(t, "order total amount", firstOrder.TotalAmount, totalAmount)
-	testI(t, "order user", firstOrder.UserId, 1)
-	testS(t, "order name", firstOrder.name, "foobar")
-	testS(t, "order title", firstOrder.title, "hello")
+	t.Int("order id", firstOrder.Id, 1)
+	t.String("order status", firstOrder.Status, "new")
+	t.String("order trade number", firstOrder.TradeNumber, tradeNo)
+	t.Decimal("order total amount", firstOrder.TotalAmount, totalAmount)
+	t.Int("order user", firstOrder.UserId, 1)
+	t.String("order name", firstOrder.name, "foobar")
+	t.String("order title", firstOrder.title, "hello")
 	ca := time.Since(firstOrder.CreatedAt)
 	ua := time.Since(firstOrder.UpdatedAt)
-	testB(t, "order created at", ca > 0 && ca < 200*time.Millisecond)
-	testB(t, "order updated at", ua > 0 && ua < 200*time.Millisecond)
-	testS(t, "order ignored", firstOrder.Ignored, "")
-	testS(t, "order ignored #2", firstOrder.ignored, "")
-	testS(t, "order password", firstOrder.Password.String(), "4297f44b13955235245b2497399d7a93")
-	testB(t, "order password 2", firstOrder.Password.Equal("123123"))
-	testS(t, "order FieldInJsonb", firstOrder.FieldInJsonb, "yes")
-	testS(t, "order OtherJsonb", firstOrder.OtherJsonb, "no")
-	testI(t, "order jsonbTest", firstOrder.jsonbTest, 123)
+	t.Bool("order created at", ca > 0 && ca < 200*time.Millisecond)
+	t.Bool("order updated at", ua > 0 && ua < 200*time.Millisecond)
+	t.String("order ignored", firstOrder.Ignored, "")
+	t.String("order ignored #2", firstOrder.ignored, "")
+	t.String("order password", firstOrder.Password.String(), "4297f44b13955235245b2497399d7a93")
+	t.Bool("order password 2", firstOrder.Password.Equal("123123"))
+	t.String("order FieldInJsonb", firstOrder.FieldInJsonb, "yes")
+	t.String("order OtherJsonb", firstOrder.OtherJsonb, "no")
+	t.Int("order jsonbTest", firstOrder.jsonbTest, 123)
 
 	var c echoContext
 	changes, err := model.Permit().Bind(c, &firstOrder)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "bind changes size", len(changes), 0)
-	testI(t, "bind order id", firstOrder.Id, 1)
-	testS(t, "bind order status", firstOrder.Status, "new")
-	testS(t, "bind order trade number", firstOrder.TradeNumber, tradeNo)
+	t.Int("bind changes size", len(changes), 0)
+	t.Int("bind order id", firstOrder.Id, 1)
+	t.String("bind order status", firstOrder.Status, "new")
+	t.String("bind order trade number", firstOrder.TradeNumber, tradeNo)
 	changes, err = model.Permit("Id", "TradeNumber").Bind(c, &firstOrder)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "bind changes size", len(changes), 2)
-	testI(t, "bind order id", firstOrder.Id, 2)
-	testS(t, "bind order status", firstOrder.Status, "new")
-	testS(t, "bind order trade number", firstOrder.TradeNumber, "")
+	t.Int("bind changes size", len(changes), 2)
+	t.Int("bind order id", firstOrder.Id, 2)
+	t.String("bind order status", firstOrder.Status, "new")
+	t.String("bind order trade number", firstOrder.TradeNumber, "")
 
 	var orders []order
 	err = model.Find("ORDER BY created_at DESC").Query(&orders)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "orders size", len(orders), 2)
-	testI(t, "first order id", orders[0].Id, 2)
-	testI(t, "first order jsonbTest", orders[0].jsonbTest, 0)
-	testI(t, "second order id", orders[1].Id, 1)
-	testI(t, "second order jsonbTest", orders[1].jsonbTest, 123)
+	t.Int("orders size", len(orders), 2)
+	t.Int("first order id", orders[0].Id, 2)
+	t.Int("first order jsonbTest", orders[0].jsonbTest, 0)
+	t.Int("second order id", orders[1].Id, 1)
+	t.Int("second order jsonbTest", orders[1].jsonbTest, 123)
 
 	time.Sleep(200 * time.Millisecond)
 	updateInput := strings.NewReader(`{
@@ -329,9 +335,9 @@ func testCRUD(t *testing.T, conn db.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testS(t, "order status", ao.Status, "furk")
-	testS(t, "order FieldInJsonb", ao.FieldInJsonb, "red")
-	testS(t, "order OtherJsonb", ao.OtherJsonb, "blue")
+	t.String("order status", ao.Status, "furk")
+	t.String("order FieldInJsonb", ao.FieldInJsonb, "red")
+	t.String("order OtherJsonb", ao.OtherJsonb, "blue")
 	var rowsAffected int
 	err = model.Update(achanges...)().ExecuteInTransaction(&db.TxOptions{
 		IsolationLevel: db.LevelSerializable,
@@ -353,45 +359,45 @@ func testCRUD(t *testing.T, conn db.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "rows affected", rowsAffected, 2)
+	t.Int("rows affected", rowsAffected, 2)
 
 	var secondOrder order
 	err = model.Find("WHERE id = $1", 2).Query(&secondOrder)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "order id", secondOrder.Id, 2)
-	testS(t, "order status", secondOrder.Status, "furk")
+	t.Int("order id", secondOrder.Id, 2)
+	t.String("order status", secondOrder.Status, "furk")
 	ca = time.Since(secondOrder.CreatedAt)
 	ua = time.Since(secondOrder.UpdatedAt)
-	testB(t, "order created at", ca > 200*time.Millisecond) // because of time.Sleep
-	testB(t, "order updated at", ua > 0 && ua < 200*time.Millisecond)
-	testS(t, "order FieldInJsonb", secondOrder.FieldInJsonb, "red")
-	testS(t, "order OtherJsonb", secondOrder.OtherJsonb, "blue")
+	t.Bool("order created at", ca > 200*time.Millisecond) // because of time.Sleep
+	t.Bool("order updated at", ua > 0 && ua < 200*time.Millisecond)
+	t.String("order FieldInJsonb", secondOrder.FieldInJsonb, "red")
+	t.String("order OtherJsonb", secondOrder.OtherJsonb, "blue")
 	var u int
-	testI(t, "order user", secondOrder.UserId, u-23+99)
+	t.Int("order user", secondOrder.UserId, u-23+99)
 
 	count, err := model.Count()
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "rows count", count, 2)
+	t.Int("rows count", count, 2)
 
 	var rowsDeleted int
 	err = model.Delete().Execute(&rowsDeleted)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "rows deleted", rowsDeleted, 2)
+	t.Int("rows deleted", rowsDeleted, 2)
 
 	count, err = model.Count()
 	if err != nil {
 		t.Fatal(err)
 	}
-	testI(t, "rows count", count, 0)
+	t.Int("rows count", count, 0)
 }
 
-func testB(t *testing.T, name string, b bool) {
+func (t *test) Bool(name string, b bool) {
 	t.Helper()
 	if b {
 		t.Logf("%s test passed", name)
@@ -400,7 +406,7 @@ func testB(t *testing.T, name string, b bool) {
 	}
 }
 
-func testS(t *testing.T, name, got, expected string) {
+func (t *test) String(name, got, expected string) {
 	t.Helper()
 	if got == expected {
 		t.Logf("%s test passed", name)
@@ -409,7 +415,7 @@ func testS(t *testing.T, name, got, expected string) {
 	}
 }
 
-func testI(t *testing.T, name string, got, expected int) {
+func (t *test) Int(name string, got, expected int) {
 	t.Helper()
 	if got == expected {
 		t.Logf("%s test passed", name)
@@ -418,7 +424,7 @@ func testI(t *testing.T, name string, got, expected int) {
 	}
 }
 
-func testD(t *testing.T, name string, got, expected decimal.Decimal) {
+func (t *test) Decimal(name string, got, expected decimal.Decimal) {
 	t.Helper()
 	if got.Equal(expected) {
 		t.Logf("%s test passed", name)
