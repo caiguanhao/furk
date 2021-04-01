@@ -39,7 +39,7 @@ type (
 		JsonName   string // key name in json input and output
 		Jsonb      string // jsonb column name in database
 		DataType   string // data type in database
-		Exported   bool
+		Exported   bool   // false if field name is lower case (unexported)
 	}
 
 	RawChanges map[string]interface{}
@@ -113,7 +113,10 @@ func (m Model) FieldByName(name string) *Field {
 //  | bool                                           | boolean              |
 //  | other                                          | text                 |
 // You can use "dataType" tag to customize the data type. "NOT NULL" is added
-// if the struct field is not a pointer.
+// if the struct field is not a pointer. You can also set SQL statements before
+// or after this statement by defining "BeforeCreateSchema() string" (for
+// example the CREATE EXTENSION statement) or "AfterCreateSchema() string" (for
+// example the CREATE INDEX statement) function for the struct.
 //  db.NewModel(struct {
 //  	__TABLE_NAME__ string `users`
 //
@@ -199,7 +202,9 @@ func (m *Model) SetLogger(logger logger.Logger) *Model {
 	return m
 }
 
-// permits field names of a struct for Filter()
+// Permits list of field names of a Model to limit Filter() which fields should
+// be allowed for mass updating. If no field names are provided ("Permit()"),
+// no fields are permitted.
 func (m Model) Permit(fieldNames ...string) *ModelWithPermittedFields {
 	idx := []int{}
 	for i, field := range m.modelFields {
@@ -214,7 +219,9 @@ func (m Model) Permit(fieldNames ...string) *ModelWithPermittedFields {
 	return &ModelWithPermittedFields{&m, idx}
 }
 
-// field name exceptions of a struct for Filter()
+// Permits all available fields except provided of a Model to limit Filter()
+// which fields should be allowed for mass updating. If no field names are
+// provided ("PermitAllExcept()"), all available fields are permitted.
 func (m Model) PermitAllExcept(fieldNames ...string) *ModelWithPermittedFields {
 	idx := []int{}
 	for i, field := range m.modelFields {
@@ -232,7 +239,7 @@ func (m Model) PermitAllExcept(fieldNames ...string) *ModelWithPermittedFields {
 	return &ModelWithPermittedFields{&m, idx}
 }
 
-// get permitted struct field names
+// Returns list of permitted field names.
 func (m ModelWithPermittedFields) PermittedFields() (out []string) {
 	for _, i := range m.permittedFieldsIdx {
 		field := m.modelFields[i]
@@ -241,12 +248,34 @@ func (m ModelWithPermittedFields) PermittedFields() (out []string) {
 	return
 }
 
-func (m ModelWithPermittedFields) Bind(ctx interface{ Bind(interface{}) error }, i interface{}) (Changes, error) {
-	rt := reflect.TypeOf(i)
+// MustBind is like Bind but panics if bind operation fails.
+func (m ModelWithPermittedFields) MustBind(ctx interface{ Bind(interface{}) error }, target interface{}) Changes {
+	c, err := m.Bind(ctx, target)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+// Bind data of permitted fields to target structure using echo.Context#Bind
+// function. The "target" must be a pointer to struct.
+//  // request with ?name=x&age=10
+//  func list(c echo.Context) error {
+//  	obj := struct {
+//  		Name string `query:"name"`
+//  		Age  int    `query:"age"`
+//  	}{}
+//  	m := db.NewModel(obj)
+//  	fmt.Println(m.Permit("Name").Bind(c, &obj))
+//  	fmt.Println(obj) // "Name" is "x" and "Age" is 0 (default), because only "Name" is permitted to change
+//  	// ...
+//  }
+func (m ModelWithPermittedFields) Bind(ctx interface{ Bind(interface{}) error }, target interface{}) (Changes, error) {
+	rt := reflect.TypeOf(target)
 	if rt.Kind() != reflect.Ptr {
 		return nil, ErrMustBePointer
 	}
-	rv := reflect.ValueOf(i).Elem()
+	rv := reflect.ValueOf(target).Elem()
 	nv := reflect.New(rt.Elem())
 	if err := ctx.Bind(nv.Interface()); err != nil {
 		return nil, err
@@ -262,7 +291,26 @@ func (m ModelWithPermittedFields) Bind(ctx interface{ Bind(interface{}) error },
 	return out, nil
 }
 
-// convert RawChanges to Changes, only field names set by last Permit() are permitted
+// Filter keeps data of permitted fields set by Permit() from multiple inputs.
+// Inputs can be RawChanges (map[string]interface{}) or JSON-encoded data
+// (string, []byte or io.Reader), their keys must be fields' JSON names. Input
+// can also be a struct. The "Changes" outputs can be arguments for Insert() or
+// Update().
+//  m := db.NewModel(struct {
+//  	Age *int `json:"age"`
+//  }{})
+//  m.Permit("Age").Filter(
+//  	db.RawChanges{
+//  		"age": 10,
+//  	},
+//  	map[string]interface{}{
+//  		"age": 20,
+//  	},
+//  	`{"age": 30}`,
+//  	[]byte(`{"age": 40}`),
+//  	strings.NewReader(`{"age": 50}`),
+//  	struct{ Age int }{60},
+//  ) // Age is 60
 func (m ModelWithPermittedFields) Filter(inputs ...interface{}) (out Changes) {
 	out = Changes{}
 	for _, input := range inputs {
@@ -332,7 +380,13 @@ func (m ModelWithPermittedFields) filterPermits(in RawChanges, out *Changes) {
 	}
 }
 
-// convert RawChanges to Changes
+// Convert RawChanges to Changes.
+//  m := db.NewModel(struct {
+//  	Age *int `json:"age"`
+//  }{})
+//  m.Changes(map[string]interface{}{
+//  	"age": 99,
+//  })
 func (m Model) Changes(in RawChanges) (out Changes) {
 	out = Changes{}
 	for _, field := range m.modelFields {
@@ -344,7 +398,17 @@ func (m Model) Changes(in RawChanges) (out Changes) {
 	return
 }
 
-// create a SELECT statement
+// Create a SELECT query statement with all fields of a Model. You can provide
+// conditions (like WHERE, ORDER BY, LIMIT) to the statement as the first
+// argument. The rest arguments are for any placeholder parameters in the
+// statement. If you want to use other data type than the type of struct passed
+// in NewModel(), see Select().
+//  // put results into a slice
+//  var users []models.User
+//  db.NewModel(models.User{}, conn).Find().MustQuery(&users)
+//  // put results into a struct
+//  var user models.User
+//  db.NewModel(models.User{}, conn).Find("WHERE id = $1", 1).MustQuery(&user)
 func (m Model) Find(values ...interface{}) SQLWithValues {
 	fields := []string{}
 	for _, field := range m.modelFields {
@@ -359,7 +423,19 @@ func (m Model) Find(values ...interface{}) SQLWithValues {
 	return m.Select(strings.Join(fields, ", "), values...)
 }
 
-// create a SELECT statement with custom fields
+// Select is like Find but you can choose what columns to retrieve.
+//  // put results into a slice
+//  var names []string
+//  db.NewModelTable("users", conn).Select("name", "ORDER BY id ASC").MustQuery(&names)
+//  // put results into a map
+//  var id2name map[int]string
+//  db.NewModelTable("users", conn).Select("id, name", "ORDER BY id ASC").MustQuery(&id2name)
+//  // put results into a slice of custom struct
+//  var users []struct {
+//  	name string
+//  	id   int
+//  }
+//  db.NewModelTable("users", conn).Select("name, id", "ORDER BY id ASC").MustQuery(&users)
 func (m Model) Select(fields string, values ...interface{}) SQLWithValues {
 	var where string
 	if len(values) > 0 {
@@ -372,6 +448,7 @@ func (m Model) Select(fields string, values ...interface{}) SQLWithValues {
 	return m.NewSQLWithValues(sql, values...)
 }
 
+// MustCount is like Count but panics if count operation fails.
 func (m Model) MustCount(values ...interface{}) int {
 	count, err := m.Count(values...)
 	if err != nil {
@@ -380,13 +457,17 @@ func (m Model) MustCount(values ...interface{}) int {
 	return count
 }
 
-// a helper to create and execute SELECT COUNT(*) statement
+// Create and execute a SELECT COUNT(*) statement, return number of rows. You
+// can provide conditions (like WHERE, ORDER BY, LIMIT) to the statement as the
+// first argument. The rest arguments are for any placeholder parameters in
+// the statement.
 func (m Model) Count(values ...interface{}) (count int, err error) {
 	err = m.Select("COUNT(*)", values...).QueryRow(&count)
 	return
 }
 
-// Just like Exists(), panics if connection error; returns true if record exists, false if not
+// MustExists is like Exists but panics if existence check operation fails.
+// Returns true if record exists, false if not exists.
 func (m Model) MustExists(values ...interface{}) bool {
 	exists, err := m.Exists(values...)
 	if err != nil {
@@ -395,7 +476,8 @@ func (m Model) MustExists(values ...interface{}) bool {
 	return exists
 }
 
-// Helper function to create and execute SELECT 1 AS one statement
+// Create and execute a SELECT 1 AS one statement. Returns true if record
+// exists, false if not exists.
 func (m Model) Exists(values ...interface{}) (exists bool, err error) {
 	var ret int
 	err = m.Select("1 AS one", values...).QueryRow(&ret)
@@ -675,4 +757,17 @@ func (m *Model) parseStruct(obj interface{}) (fields []Field, jsonbColumns []str
 		})
 	}
 	return
+}
+
+func (c Changes) MarshalJSON() ([]byte, error) {
+	data := map[string]interface{}{}
+	for field, value := range c {
+		data[field.JsonName] = value
+	}
+	return json.Marshal(data)
+}
+
+func (c Changes) String() string {
+	j, _ := json.MarshalIndent(c, "", "  ")
+	return string(j)
 }
