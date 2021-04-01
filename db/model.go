@@ -406,6 +406,7 @@ func (m Model) Changes(in RawChanges) (out Changes) {
 //  // put results into a slice
 //  var users []models.User
 //  db.NewModel(models.User{}, conn).Find().MustQuery(&users)
+//
 //  // put results into a struct
 //  var user models.User
 //  db.NewModel(models.User{}, conn).Find("WHERE id = $1", 1).MustQuery(&user)
@@ -427,9 +428,11 @@ func (m Model) Find(values ...interface{}) SQLWithValues {
 //  // put results into a slice
 //  var names []string
 //  db.NewModelTable("users", conn).Select("name", "ORDER BY id ASC").MustQuery(&names)
+//
 //  // put results into a map
 //  var id2name map[int]string
 //  db.NewModelTable("users", conn).Select("id, name", "ORDER BY id ASC").MustQuery(&id2name)
+//
 //  // put results into a slice of custom struct
 //  var users []struct {
 //  	name string
@@ -489,6 +492,7 @@ func (m Model) Exists(values ...interface{}) (exists bool, err error) {
 	return
 }
 
+// MustAssign is like Assign but panics if assign operation fails.
 func (m Model) MustAssign(i interface{}, lotsOfChanges ...Changes) []Changes {
 	out, err := m.Assign(i, lotsOfChanges...)
 	if err != nil {
@@ -497,13 +501,28 @@ func (m Model) MustAssign(i interface{}, lotsOfChanges ...Changes) []Changes {
 	return out
 }
 
-func (m Model) Assign(i interface{}, lotsOfChanges ...Changes) (out []Changes, err error) {
-	rt := reflect.TypeOf(i)
+// Assign changes to target object. Useful if you want to validate your struct.
+//  func create(c echo.Context) error {
+//  	var user models.User
+//  	m := db.NewModel(user, conn)
+//  	changes := m.MustAssign(
+//  		&user,
+//  		m.Permit("Name").Filter(c.Request().Body),
+//  	)
+//  	if err := c.Validate(user); err != nil {
+//  		panic(err)
+//  	}
+//  	var id int
+//  	m.Insert(changes...)("RETURNING id").MustQueryRow(&id)
+//  	// ...
+//  }
+func (m Model) Assign(target interface{}, lotsOfChanges ...Changes) (out []Changes, err error) {
+	rt := reflect.TypeOf(target)
 	if rt.Kind() != reflect.Ptr {
 		err = ErrMustBePointer
 		return
 	}
-	rv := reflect.ValueOf(i).Elem()
+	rv := reflect.ValueOf(target).Elem()
 	for _, changes := range lotsOfChanges {
 		for field, value := range changes {
 			f := rv.FieldByName(field.Name)
@@ -521,7 +540,11 @@ func (m Model) Assign(i interface{}, lotsOfChanges ...Changes) (out []Changes, e
 	return
 }
 
-// convert Changes to an INSERT INTO statement
+// Insert builds an INSERT INTO statement with fields and values in the
+// changes, returns a function with optional string argument which you can add
+// extra clause (like ON CONFLICT or RETURNING) to the statement.
+//  var id int
+//  m.Insert(changes...)("RETURNING id").MustQueryRow(&id)
 func (m Model) Insert(lotsOfChanges ...Changes) func(...string) SQLWithValues {
 	return func(args ...string) SQLWithValues {
 		var suffix string
@@ -570,7 +593,12 @@ func (m Model) Insert(lotsOfChanges ...Changes) func(...string) SQLWithValues {
 	}
 }
 
-// convert Changes to an UPDATE statement
+// Update builds an UPDATE statement with fields and values in the changes,
+// returns a function with optional conditions (like WHERE) to the statement as
+// the first argument. The rest arguments are for any placeholder parameters in
+// the statement.
+//  var rowsAffected int
+//  m.Update(changes...)("WHERE user_id = $1", 1).MustExecute(&rowsAffected)
 func (m Model) Update(lotsOfChanges ...Changes) func(...interface{}) SQLWithValues {
 	return func(args ...interface{}) SQLWithValues {
 		var where string
@@ -620,7 +648,11 @@ func (m Model) Update(lotsOfChanges ...Changes) func(...interface{}) SQLWithValu
 	}
 }
 
-// create a DELETE FROM statement
+// Delete builds a DELETE statement. You can add extra clause (like WHERE,
+// RETURNING) to the statement as the first argument. The rest arguments are
+// for any placeholder parameters in the statement.
+//  var ids []int
+//  db.NewModelTable("reports", conn).Delete("RETURNING id").MustQuery(&ids)
 func (m Model) Delete(values ...interface{}) SQLWithValues {
 	var where string
 	if len(values) > 0 {
@@ -633,14 +665,14 @@ func (m Model) Delete(values ...interface{}) SQLWithValues {
 	return m.NewSQLWithValues(sql, values...)
 }
 
-// a helper to add CreatedAt changes
+// Helper to add CreatedAt of current time changes.
 func (m Model) CreatedAt() Changes {
 	return m.Changes(RawChanges{
 		"CreatedAt": time.Now().UTC(),
 	})
 }
 
-// a helper to add UpdatedAt changes
+// Helper to add UpdatedAt of current time changes.
 func (m Model) UpdatedAt() Changes {
 	return m.Changes(RawChanges{
 		"UpdatedAt": time.Now().UTC(),

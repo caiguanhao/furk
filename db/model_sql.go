@@ -61,14 +61,19 @@ func (s SQLWithValues) String() string {
 	return s.sql
 }
 
+// MustQuery is like Query but panics if query operation fails.
 func (s SQLWithValues) MustQuery(target interface{}) {
 	if err := s.Query(target); err != nil {
 		panic(err)
 	}
 }
 
-// get one (if target is a pointer of struct) or all results (if target is a
-// pointer of a slice of struct) from database
+// Query executes the SQL query and put the results into the target. If target
+// is pointer of a struct, at most one row of the query is returned. If target
+// is a pointer of a slice, all rows of the query are returned. If target is a
+// pointer of a map, first column in the SELECT list will be the key of the
+// map, and the second column is the value of the map. For use cases, see
+// Find() and Select().
 func (s SQLWithValues) Query(target interface{}) error {
 	if s.model.connection == nil {
 		return ErrNoConnection
@@ -199,49 +204,70 @@ func (s SQLWithValues) scan(rv reflect.Value, scannable Scannable) error {
 	return nil
 }
 
+// MustQueryRow is like QueryRow but panics if query row operation fails.
 func (s SQLWithValues) MustQueryRow(dest ...interface{}) {
 	if err := s.QueryRow(dest...); err != nil {
 		panic(err)
 	}
 }
 
-// get returning results from an INSERT INTO statement
+// QueryRow gets results from the first row, and put values of each column to
+// corresponding dest. For use cases, see Insert().
+//  var u struct {
+//  	name string
+//  	id   int
+//  }
+//  db.NewModelTable("users", conn).Select("name, id").MustQueryRow(&u.name, &u.id)
 func (s SQLWithValues) QueryRow(dest ...interface{}) error {
 	return s.QueryRowInTransaction(nil, dest...)
 }
 
+// MustQueryRowInTransaction is like QueryRowInTransaction but panics if query
+// row operation fails.
 func (s SQLWithValues) MustQueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) {
 	if err := s.QueryRowInTransaction(txOpts, dest...); err != nil {
 		panic(err)
 	}
 }
 
+// QueryRowInTransaction is like QueryRow but executes the statement in a
+// transaction, you can define IsolationLevel and statements Before and/or
+// After it.
 func (s SQLWithValues) QueryRowInTransaction(txOpts *TxOptions, dest ...interface{}) error {
 	return s.execute(actionQueryRow, txOpts, dest...)
 }
 
+// MustExecute is like Execute but panics if execute operation fails.
 func (s SQLWithValues) MustExecute(dest ...interface{}) {
 	if err := s.Execute(dest...); err != nil {
 		panic(err)
 	}
 }
 
-// execute statements like INSERT INTO, UPDATE, DELETE and get rows affected
+// Execute executes a query without returning any rows by an UPDATE, INSERT, or
+// DELETE. You can get number of rows affected by providing pointer of int or
+// int64 to the optional dest. For use cases, see Update().
 func (s SQLWithValues) Execute(dest ...interface{}) error {
 	return s.ExecuteInTransaction(nil, dest...)
 }
 
+// MustExecuteRowInTransaction is like ExecuteRowInTransaction but panics if
+// execute operation fails.
 func (s SQLWithValues) MustExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) {
 	if err := s.ExecuteInTransaction(txOpts, dest...); err != nil {
 		panic(err)
 	}
 }
 
+// ExecuteInTransaction is like Execute but executes the statement in a
+// transaction, you can define IsolationLevel and statements Before and/or
+// After it.
 func (s SQLWithValues) ExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) error {
 	return s.execute(actionExecute, txOpts, dest...)
 }
 
-// execute a transaction
+// ExecTx executes a query in a transaction. You can get number of rows
+// affected by providing pointer of int or int64 to the optional dest.
 func (s SQLWithValues) ExecTx(tx Tx, ctx context.Context, dest ...interface{}) (err error) {
 	if s.model.connection == nil {
 		err = ErrNoConnection
