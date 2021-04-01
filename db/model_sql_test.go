@@ -178,9 +178,7 @@ func testCRUD(_t *testing.T, conn db.DB) {
 	if err := json.NewDecoder(createInput).Decode(&createData); err != nil {
 		t.Fatal(err)
 	}
-	model := db.NewModel(order{})
-	model.SetConnection(conn)
-	model.SetLogger(logger.StandardLogger)
+	model := db.NewModel(order{}, conn, logger.StandardLogger)
 
 	var id int
 	err = model.Insert(
@@ -255,6 +253,14 @@ func testCRUD(_t *testing.T, conn db.DB) {
 	d2 := time.Since(createdAts[1])
 	t.Bool("created_at 0", d1 > 0 && d1 < 200*time.Millisecond)
 	t.Bool("created_at 1", d2 > 0 && d2 < 200*time.Millisecond)
+
+	var customOrders []struct {
+		status string
+		id     int
+	}
+	db.NewModelTable("orders", conn, logger.StandardLogger).
+		Select("status, id", "ORDER BY id ASC").MustQuery(&customOrders)
+	t.String("custom order struct", fmt.Sprintf("%+v", customOrders), "[{status:new id:1} {status:new2 id:2}]")
 
 	var firstOrder order
 	err = model.Find("ORDER BY created_at ASC").Query(&firstOrder)

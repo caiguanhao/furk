@@ -50,21 +50,36 @@ var (
 	ErrMustBePointer = errors.New("must be pointer")
 )
 
-// Initialize a Model from a struct.
-func NewModel(object interface{}) (m *Model) {
-	m = NewModelSlim(object)
+// Initialize a Model from a struct. For available options, see SetOptions().
+func NewModel(object interface{}, options ...interface{}) (m *Model) {
+	m = NewModelSlim(object, options...)
 	m.modelFields, m.jsonbColumns = m.parseStruct(object)
 	return
 }
 
 // Initialize a Model from a struct without parsing fields of the struct.
 // Useful if you are calling functions that don't need fields, for example:
-//  db.NewModelSlim(models.User{}).SetConnection(conn).MustCount()
-func NewModelSlim(object interface{}) (m *Model) {
+//  db.NewModelSlim(models.User{}, conn).MustCount()
+// For available options, see SetOptions().
+func NewModelSlim(object interface{}, options ...interface{}) (m *Model) {
 	m = &Model{
 		tableName:  ToTableName(object),
 		structType: reflect.TypeOf(object),
 	}
+	m.SetOptions(options...)
+	return
+}
+
+// Initialize a Model by defining table name only. Useful if you are calling
+// functions that don't need fields, for example:
+//  db.NewModelTable("users", conn).MustCount()
+// For available options, see SetOptions().
+func NewModelTable(tableName string, options ...interface{}) (m *Model) {
+	m = &Model{
+		tableName:  tableName,
+		structType: nil,
+	}
+	m.SetOptions(options...)
 	return
 }
 
@@ -138,12 +153,14 @@ func (m Model) Schema() string {
 		sql = append(sql, "\t"+jsonbField+" "+dataType)
 	}
 	out := "CREATE TABLE " + m.tableName + " (\n" + strings.Join(sql, ",\n") + "\n);\n"
-	n := reflect.New(m.structType).Interface()
-	if a, ok := n.(interface{ BeforeCreateSchema() string }); ok {
-		out = a.BeforeCreateSchema() + "\n\n" + out
-	}
-	if a, ok := n.(interface{ AfterCreateSchema() string }); ok {
-		out += "\n" + a.AfterCreateSchema() + "\n"
+	if m.structType != nil {
+		n := reflect.New(m.structType).Interface()
+		if a, ok := n.(interface{ BeforeCreateSchema() string }); ok {
+			out = a.BeforeCreateSchema() + "\n\n" + out
+		}
+		if a, ok := n.(interface{ AfterCreateSchema() string }); ok {
+			out += "\n" + a.AfterCreateSchema() + "\n"
+		}
 	}
 	return out
 }
@@ -153,13 +170,30 @@ func (m Model) DropSchema() string {
 	return "DROP TABLE IF EXISTS " + m.tableName + ";\n"
 }
 
-// Set a database connection for the Model.
+// SetOptions sets database connection (see SetConnection()) and/or logger (see
+// SetLogger()).
+func (m *Model) SetOptions(options ...interface{}) *Model {
+	for _, option := range options {
+		switch o := option.(type) {
+		case DB:
+			m.SetConnection(o)
+		case logger.Logger:
+			m.SetLogger(o)
+		}
+	}
+	return m
+}
+
+// Set a database connection for the Model. ErrNoConnection is returned if no
+// connection is set.
 func (m *Model) SetConnection(db DB) *Model {
 	m.connection = db
 	return m
 }
 
-// Set the logger for the Model.
+// Set the logger for the Model. Use logger.StandardLogger if you want to use
+// Go's built-in standard logging package. By default, no logger is used, so
+// the SQL statements are not printed to the console.
 func (m *Model) SetLogger(logger logger.Logger) *Model {
 	m.logger = logger
 	return m
@@ -277,6 +311,9 @@ func (m ModelWithPermittedFields) filterPermits(in RawChanges, out *Changes) {
 	for _, i := range m.permittedFieldsIdx {
 		field := m.modelFields[i]
 		if _, ok := in[field.JsonName]; !ok {
+			continue
+		}
+		if m.structType == nil {
 			continue
 		}
 		f, ok := m.structType.FieldByName(field.Name)

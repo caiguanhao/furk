@@ -131,7 +131,7 @@ func (s SQLWithValues) Query(target interface{}) error {
 
 // scan a scannable (Row or Rows) into every field of a struct
 func (s SQLWithValues) scan(rv reflect.Value, scannable Scannable) error {
-	if rv.Kind() != reflect.Struct || rv.Type() != s.model.structType {
+	if rv.Kind() != reflect.Struct || (s.model.structType != nil && rv.Type() != s.model.structType) {
 		return scannable.Scan(rv.Addr().Interface())
 	}
 	f := rv.FieldByName(tableNameField)
@@ -145,19 +145,32 @@ func (s SQLWithValues) scan(rv reflect.Value, scannable Scannable) error {
 			continue
 		}
 		f := rv.FieldByName(field.Name)
+		var pointer interface{}
 		if field.Exported {
-			pointer := f.Addr().Interface()
-			dests = append(dests, pointer)
+			pointer = f.Addr().Interface()
 		} else {
-			pointer := reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Interface()
-			dests = append(dests, pointer)
+			pointer = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Interface()
 		}
+		dests = append(dests, pointer)
 	}
 	jsonbValues := []jsonbRaw{}
 	for range s.model.jsonbColumns {
 		jsonb := jsonbRaw{}
 		dests = append(dests, &jsonb)
 		jsonbValues = append(jsonbValues, jsonb)
+	}
+	if s.model.structType == nil || len(dests) == 0 {
+		rt := rv.Type()
+		for i := 0; i < rt.NumField(); i++ {
+			f := rv.Field(i)
+			var pointer interface{}
+			if rt.Field(i).PkgPath == "" {
+				pointer = f.Addr().Interface()
+			} else {
+				pointer = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Interface()
+			}
+			dests = append(dests, pointer)
+		}
 	}
 	if err := scannable.Scan(dests...); err != nil {
 		return err
