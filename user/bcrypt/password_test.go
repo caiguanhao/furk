@@ -85,7 +85,7 @@ func TestInPQ(_t *testing.T) {
 
 	connStr := os.Getenv("DBCONNSTR")
 	if connStr == "" {
-		connStr = "postgres://localhost:5432/flurktests?sslmode=disable"
+		connStr = "postgres://localhost:5432/furktests?sslmode=disable"
 	}
 	conn := pq.MustOpen(connStr)
 
