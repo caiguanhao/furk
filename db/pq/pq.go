@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/caiguanhao/furk/db"
+	"github.com/caiguanhao/furk/db/standard"
 	_ "github.com/lib/pq"
 )
 
@@ -23,5 +24,5 @@ func Open(conn string) (db.DB, error) {
 	if err := c.Ping(); err != nil {
 		return nil, err
 	}
-	return &db.StandardDB{c}, nil
+	return &standard.DB{c}, nil
 }
