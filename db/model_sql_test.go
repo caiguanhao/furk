@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/caiguanhao/furk/db"
+	"github.com/caiguanhao/furk/db/gopg"
 	"github.com/caiguanhao/furk/db/pgx"
 	"github.com/caiguanhao/furk/db/pq"
 	"github.com/caiguanhao/furk/logger"
@@ -73,6 +74,7 @@ func (p password) Equal(password string) bool {
 	return fmt.Sprintf("%x", md5.Sum([]byte(password))) == p.hashed
 }
 
+// used in pq or pgx
 func (p *password) Scan(src interface{}) error {
 	if value, ok := src.(string); ok {
 		*p = password{
@@ -80,6 +82,17 @@ func (p *password) Scan(src interface{}) error {
 		}
 	}
 	return nil
+}
+
+// used in gopg
+func (p *password) ScanValue(rd gopg.TypesReader, n int) error {
+	value, err := gopg.TypesScanString(rd, n)
+	if err == nil {
+		*p = password{
+			hashed: value,
+		}
+	}
+	return err
 }
 
 func (p password) Value() (driver.Value, error) {
@@ -121,6 +134,14 @@ func TestCRUDInPQ(t *testing.T) {
 
 func TestCRUDInPGX(t *testing.T) {
 	conn, err := pgx.Open(connStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCRUD(t, conn)
+}
+
+func TestCRUDInGOPG(t *testing.T) {
+	conn, err := gopg.Open(connStr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +284,7 @@ func testCRUD(_t *testing.T, conn db.DB) {
 	t.String("custom order struct", fmt.Sprintf("%+v", customOrders), "[{status:new id:1} {status:new2 id:2}]")
 
 	var firstOrder order
-	err = model.Find("ORDER BY created_at ASC").Query(&firstOrder)
+	err = model.Find("ORDER BY created_at ASC LIMIT 1").Query(&firstOrder) // "LIMIT 1" only necessary for gopg
 	if err != nil {
 		t.Fatal(err)
 	}

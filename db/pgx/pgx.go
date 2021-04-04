@@ -49,14 +49,20 @@ func (d *DB) Close() error {
 
 func (d *DB) Exec(query string, args ...interface{}) (db.Result, error) {
 	re, err := d.Pool.Exec(context.Background(), query, args...)
+	if err != nil {
+		return nil, err
+	}
 	return Result{
 		rowsAffected: re.RowsAffected(),
-	}, err
+	}, nil
 }
 
 func (d *DB) Query(query string, args ...interface{}) (db.Rows, error) {
 	rows, err := d.Pool.Query(context.Background(), query, args...)
-	return Rows{rows}, err
+	if err != nil {
+		return nil, err
+	}
+	return &Rows{rows}, nil
 }
 
 func (d *DB) QueryRow(query string, args ...interface{}) db.Row {
@@ -67,7 +73,10 @@ func (d *DB) BeginTx(ctx context.Context, isolationLevel string) (db.Tx, error) 
 	tx, err := d.Pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.TxIsoLevel(isolationLevel),
 	})
-	return &Tx{tx}, err
+	if err != nil {
+		return nil, err
+	}
+	return &Tx{tx}, nil
 }
 
 func (d *DB) ErrNoRows() error {
@@ -83,14 +92,20 @@ func (d *DB) ErrGetCode(err error) string {
 
 func (t *Tx) ExecContext(ctx context.Context, query string, args ...interface{}) (db.Result, error) {
 	re, err := t.Tx.Exec(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
 	return Result{
 		rowsAffected: re.RowsAffected(),
-	}, err
+	}, nil
 }
 
 func (t *Tx) QueryContext(ctx context.Context, query string, args ...interface{}) (db.Rows, error) {
 	rows, err := t.Tx.Query(ctx, query, args...)
-	return Rows{rows}, err
+	if err != nil {
+		return nil, err
+	}
+	return &Rows{rows}, nil
 }
 
 func (t *Tx) QueryRowContext(ctx context.Context, query string, args ...interface{}) db.Row {
@@ -109,7 +124,7 @@ func (r Result) RowsAffected() (int64, error) {
 	return r.rowsAffected, nil
 }
 
-func (r Rows) Close() error {
+func (r *Rows) Close() error {
 	r.Rows.Close()
 	return nil
 }

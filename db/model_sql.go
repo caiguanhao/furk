@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"unsafe"
@@ -50,6 +51,9 @@ func (j *jsonbRaw) Scan(src interface{}) error { // necessary for github.com/lib
 
 func (m Model) NewSQLWithValues(sql string, values ...interface{}) SQLWithValues {
 	sql = strings.TrimSpace(sql)
+	if c, ok := m.connection.(ConvertParameters); ok {
+		sql, values = c.ConvertParameters(sql, values)
+	}
 	return SQLWithValues{
 		model:  &m,
 		sql:    sql,
@@ -266,8 +270,9 @@ func (s SQLWithValues) ExecuteInTransaction(txOpts *TxOptions, dest ...interface
 	return s.execute(actionExecute, txOpts, dest...)
 }
 
-// ExecTx executes a query in a transaction. You can get number of rows
-// affected by providing pointer of int or int64 to the optional dest.
+// ExecTx executes a query in a transaction without returning any rows. You can
+// get number of rows affected by providing pointer of int or int64 to the
+// optional dest.
 func (s SQLWithValues) ExecTx(tx Tx, ctx context.Context, dest ...interface{}) (err error) {
 	if s.model.connection == nil {
 		err = ErrNoConnection
@@ -275,6 +280,17 @@ func (s SQLWithValues) ExecTx(tx Tx, ctx context.Context, dest ...interface{}) (
 	}
 	s.log(s.sql, s.values)
 	err = returnRowsAffected(dest)(tx.ExecContext(ctx, s.sql, s.values...))
+	return
+}
+
+// Query executes the SQL query and returns rows.
+func (s SQLWithValues) QueryTx(tx Tx, ctx context.Context, dest ...interface{}) (rows Rows, err error) {
+	if s.model.connection == nil {
+		err = ErrNoConnection
+		return
+	}
+	s.log(s.sql, s.values)
+	rows, err = tx.QueryContext(ctx, s.sql, s.values...)
 	return
 }
 
@@ -294,7 +310,8 @@ func (s SQLWithValues) execute(action int, txOpts *TxOptions, dest ...interface{
 	}
 	ctx := context.Background()
 	s.log("BEGIN", nil)
-	tx, err := s.model.connection.BeginTx(ctx, txOpts.IsolationLevel)
+	var tx Tx
+	tx, err = s.model.connection.BeginTx(ctx, txOpts.IsolationLevel)
 	if err != nil {
 		return
 	}
@@ -302,6 +319,7 @@ func (s SQLWithValues) execute(action int, txOpts *TxOptions, dest ...interface{
 		if r := recover(); r != nil {
 			s.log("ROLLBACK", nil)
 			tx.Rollback(ctx)
+			err = errors.New(fmt.Sprint(r))
 		} else if err != nil {
 			s.log("ROLLBACK", nil)
 			tx.Rollback(ctx)

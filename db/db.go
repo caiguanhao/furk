@@ -48,4 +48,8 @@ type (
 	Scannable interface {
 		Scan(dest ...interface{}) error
 	}
+
+	ConvertParameters interface {
+		ConvertParameters(string, []interface{}) (string, []interface{})
+	}
 )

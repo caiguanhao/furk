@@ -1,10 +1,12 @@
 package db_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
 	"github.com/caiguanhao/furk/db"
+	"github.com/caiguanhao/furk/db/gopg"
 	"github.com/caiguanhao/furk/db/pgx"
 	"github.com/caiguanhao/furk/db/pq"
 	"github.com/caiguanhao/furk/db/standard"
@@ -36,6 +38,72 @@ func ExamplePQ() {
 	fmt.Println(name)
 	// Output:
 	// furktests
+}
+
+func ExampleGOPG() {
+	conn := gopg.MustOpen("postgres://localhost:5432/furktests?sslmode=disable")
+	defer conn.Close()
+
+	var output0 string
+	output1 := map[int]string{}
+	var output2 []int
+
+	m := db.NewModelTable("", conn, logger.StandardLogger)
+	m.NewSQLWithValues("SELECT current_database()").MustQueryRowInTransaction(&db.TxOptions{
+		Before: func(ctx context.Context, tx db.Tx) (err error) {
+			// just like tx.ExecContext(ctx, ...)
+			err = m.NewSQLWithValues("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").ExecTx(tx, ctx)
+			if err != nil {
+				return
+			}
+			var rows db.Rows
+			// just like tx.QueryContext(ctx, ...)
+			rows, err = m.NewSQLWithValues("SELECT s.a, chr(s.a) FROM generate_series(65,70) AS s(a)").QueryTx(tx, ctx)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var key int
+				var value string
+				if err = rows.Scan(&key, &value); err != nil {
+					return
+				}
+				output1[key] = value
+			}
+			err = rows.Err()
+			return
+		},
+		After: func(ctx context.Context, tx db.Tx) error {
+			// just like tx.QueryContext(ctx, ...)
+			rows, err := m.NewSQLWithValues("SELECT * FROM generate_series(11, 15)").QueryTx(tx, ctx)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var id int
+				if err := rows.Scan(&id); err != nil {
+					return err
+				}
+				output2 = append(output2, id)
+			}
+			return rows.Err()
+		},
+	}, &output0)
+	fmt.Println("output0:", output0)
+	fmt.Println("output1:", output1)
+	fmt.Println("output2:", output2)
+
+	var outpu3 map[int]string
+	m.NewSQLWithValues("SELECT s.a, chr(s.a) FROM generate_series(71,75) AS s(a)").MustQuery(&outpu3)
+	fmt.Println("output3:", outpu3)
+
+	// Output:
+	// output0: furktests
+	// output1: map[65:A 66:B 67:C 68:D 69:E 70:F]
+	// output2: [11 12 13 14 15]
+	// output3: map[71:G 72:H 73:I 74:J 75:K]
 }
 
 func ExamplePost() {
