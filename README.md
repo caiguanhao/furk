@@ -1,7 +1,17 @@
 # furk
 
+*furk* is a simple tool, especially for developing RESTful API with JSON, to make PostgreSQL database queries. Some features are learned from Rails.
+
 [![](https://godoc.org/github.com/caiguanhao/furk?status.svg)](https://pkg.go.dev/github.com/caiguanhao/furk#section-directories)
 [![Build Status](https://travis-ci.com/caiguanhao/furk.svg?branch=master)](https://travis-ci.com/caiguanhao/furk)
+
+**Features:**
+
+- ✅ Model is a database table and it is created from struct. Column names are inferred from struct field names. You can write less SQL statements for CRUD operations.
+- ✅ Support JSONB data type, you can store many fields in one jsonb column, like Rails' [store_accessor](https://api.rubyonrails.org/v6.1.3/classes/ActiveRecord/Store.html).
+- ✅ Safely insert and update record with Filter() to filter unwanted data, like Rails' [permit](https://api.rubyonrails.org/v6.1.2.1/classes/ActionController/Parameters.html).
+- ✅ Migrate your database like Rails database migrations.
+- ✅ Support pq, pgx and go-pg, you can switch driver at runtime.
 
 ## Model
 
