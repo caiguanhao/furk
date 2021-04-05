@@ -53,6 +53,15 @@ if err := c.Ping(); err != nil {
 }
 ```
 
+### Performance
+
+For more information, see [Benchmark](db/benchmark_test.go).
+
+<img width="400" src="./db/benchmark.svg">
+
+For reference only. [db/gopg](db/gopg/gopg.go) is slower because go-pg's
+Query() is very different from pq's or pgx's.
+
 ### New Model
 
 ```go
