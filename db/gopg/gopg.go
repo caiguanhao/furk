@@ -15,8 +15,6 @@ import (
 )
 
 var (
-	rePosParam = regexp.MustCompile(`\$[0-9]+`)
-
 	// These functions are copied from the go-pg package, so that you don't
 	// have to import "github.com/go-pg/pg/v10/types".
 	TypesScan        = types.Scan
@@ -30,6 +28,8 @@ var (
 	TypesScanFloat64 = types.ScanFloat64
 	TypesScanTime    = types.ScanTime
 	TypesScanBool    = types.ScanBool
+
+	rePosParam = regexp.MustCompile(`\$[0-9]+`)
 )
 
 type (
@@ -77,6 +77,7 @@ type (
 	}
 )
 
+// MustOpen is like Open but panics if connect operation fails.
 func MustOpen(conn string) db.DB {
 	c, err := Open(conn)
 	if err != nil {
@@ -85,6 +86,7 @@ func MustOpen(conn string) db.DB {
 	return c
 }
 
+// Open creates and establishes one connection to database.
 func Open(conn string) (db.DB, error) {
 	opt, err := pg.ParseURL(conn)
 	if err != nil {
@@ -222,6 +224,22 @@ func (q *queryRows) Err() error {
 	return <-q.errChan // step 12
 }
 
+// Since go-pg doesn't use something like Go's database/sql.DB.Query, so we
+// need to use channels to make it work with db.DB:
+//  rows, _ := db.Query()
+//  defer rows.Close()
+//  for rows.Next() {
+//  	rows.Scan(...)
+//  }
+//  rows.Err()
+// The "queryRows" implements go-pg's orm model functions and acts like a model
+// for go-pg. When rows.Next() is called for the first time, go-pg's Query()
+// function will be executed in a new goroutine. The rows.Next() function
+// returns true every time when BeforeScan() is called (only when Query() has
+// rows to return), returns false once go-pg's Query() function finishes. When
+// rows.Next() returns true, rows.Scan() will be called, and all destination
+// pointers of rows.Scan() will pass to ScanColumn(). When a row finishes
+// scanning, AfterScan() is called.
 func (q *queryRows) Next() bool {
 	if q.nextChan == nil { // step 0
 		q.destChan = make(chan []interface{}, 1)

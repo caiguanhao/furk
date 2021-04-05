@@ -26,6 +26,7 @@ type (
 	}
 )
 
+// MustOpen is like Open but panics if connect operation fails.
 func MustOpen(conn string) db.DB {
 	c, err := Open(conn)
 	if err != nil {
@@ -34,6 +35,7 @@ func MustOpen(conn string) db.DB {
 	return c
 }
 
+// Open creates and establishes one connection to database.
 func Open(conn string) (db.DB, error) {
 	pool, err := pgxpool.Connect(context.Background(), conn)
 	if err != nil {

@@ -24,11 +24,13 @@ var (
 )
 
 type (
+	// TxOptions can be used in QueryRowInTransaction or ExecuteInTransaction
 	TxOptions struct {
 		IsolationLevel string
 		Before, After  func(context.Context, Tx) error
 	}
 
+	// SQLWithValues can be created with Model.NewSQLWithValues(sql, values...)
 	SQLWithValues struct {
 		model  *Model
 		sql    string
@@ -49,6 +51,8 @@ func (j *jsonbRaw) Scan(src interface{}) error { // necessary for github.com/lib
 	return json.Unmarshal(source, j)
 }
 
+// Create new SQLWithValues with SQL statement as first argument, The rest
+// arguments are for any placeholder parameters in the statement.
 func (m Model) NewSQLWithValues(sql string, values ...interface{}) SQLWithValues {
 	sql = strings.TrimSpace(sql)
 	if c, ok := m.connection.(ConvertParameters); ok {
@@ -255,8 +259,8 @@ func (s SQLWithValues) Execute(dest ...interface{}) error {
 	return s.ExecuteInTransaction(nil, dest...)
 }
 
-// MustExecuteRowInTransaction is like ExecuteRowInTransaction but panics if
-// execute operation fails.
+// MustExecuteInTransaction is like ExecuteInTransaction but panics if execute
+// operation fails.
 func (s SQLWithValues) MustExecuteInTransaction(txOpts *TxOptions, dest ...interface{}) {
 	if err := s.ExecuteInTransaction(txOpts, dest...); err != nil {
 		panic(err)

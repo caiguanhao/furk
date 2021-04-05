@@ -15,6 +15,11 @@ import (
 )
 
 type (
+	// Model is a database table and it is created from struct. Table name
+	// is inferred from the name of thea struct, the tag of __TABLE_NAME__
+	// field or its TableName() receiver. Column names are inferred from
+	// struct field names or theirs "column" tags. Both table names and
+	// field names are in snake_case by default.
 	Model struct {
 		connection   DB
 		logger       logger.Logger
