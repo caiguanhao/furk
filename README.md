@@ -1,3 +1,5 @@
+## ⚠️⚠️⚠️ RENAMED AND MOVED TO: [github.com/gopsql/psql](https://github.com/gopsql/psql)
+
 # furk
 
 *furk* is a simple tool, especially for developing RESTful API with JSON, to make PostgreSQL database queries. Some features are learned from Rails.
